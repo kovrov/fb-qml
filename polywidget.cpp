@@ -18,6 +18,7 @@ struct Primitive
 };
 
 
+
 QByteArray decode(const QByteArray &a)
 {
     QByteArray res;
@@ -199,26 +200,31 @@ public:
         return false;
     }
 
-    void updateScreen(QPainter &painter, const QRect &r)
+    void updateScreen(QPainter &painter, const QRect &rect)
     {
         QColor black(0, 0, 0);
-        painter.fillRect(r, black);
+        painter.fillRect(rect, black);
         foreach (const auto &primitive, m_primitives) {
             drawPrimitive(primitive, painter);
         }
-        flipScreen();
-        if (m_primitives_clear) {
-            m_primitives_clear = false;
+
+        if (m_clear) {
             m_primitives.clear();
+            m_primitives_clear = true;
         }
+        else {
+            m_primitives = m_savedPrimitives; // cow
+        }
+
         m_yield = 5;
     }
 
 private:
     void clearScreen()
     {
-        if (m_clear)
-            flipScreen();
+        if (m_clear) {
+            m_primitives_clear = true;
+        }
     }
 
     void drawShape(int offset, int shape_x, int shape_y)
@@ -233,13 +239,13 @@ private:
             auto const primitive_header = read_uint16(m_pol, read_counter);
             read_counter += 2;
             int x = 0, y = 0;
-            if (primitive_header & 32768) {
+            if (primitive_header & (1 << 15)) {
                 x = read_int16(m_pol, read_counter);
                 read_counter += 2;
                 y = read_int16(m_pol, read_counter);
                 read_counter += 2;
             }
-            bool unused = primitive_header & 16384;
+            bool unused = primitive_header & (1 << 14);
             auto color_index = read_uint8(m_pol, read_counter);
             read_counter++;
             if (!m_clear)
@@ -270,26 +276,15 @@ private:
 
     void setPalette(int a, int c)
     {
-        auto cursor = read_uint16(m_pol, 6);
-        cursor += a * 32;
+        auto cursor = read_uint16(m_pol, 6) + a * 32;
         const auto off = (c == 0) ? 16 : 0;
-        for (auto i = 0; i < 16; i++) {
-            auto color = read_uint16(m_pol, cursor); cursor += 2;
-            quint8 t = (color == 0) ? 0 : 3;
-            int r = (((color & 0xF00) >> 6) | t) * 3;
-            int g = (((color & 0x0F0) >> 2) | t) * 3;
-            int b = (((color & 0x00F) << 2) | t) * 3;
-            m_palette[off+i] = QColor(r,g,b);
-        }
-    }
-
-    void flipScreen()
-    {
-        if (m_clear) {
-            m_primitives_clear = true;
-        }
-        else {
-            m_primitives = m_savedPrimitives; // cow
+        for (size_t i = 0; i < 16; i++) {
+            const auto color = read_uint16(m_pol, cursor); cursor += 2;
+            const quint8 t = (color == 0) ? 0 : 3;
+            const int r = (((color & 0xF00) >> 6) | t) * 3;
+            const int g = (((color & 0x0F0) >> 2) | t) * 3;
+            const int b = (((color & 0x00F) << 2) | t) * 3;
+            m_palette[off+i] = QColor(r, g, b);
         }
     }
 
