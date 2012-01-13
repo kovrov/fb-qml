@@ -9,16 +9,6 @@
 
 
 
-struct Primitive
-{
-    int x;
-    int y;
-    int num;
-    int color;
-};
-
-
-
 QByteArray decode(const QByteArray &a)
 {
     QByteArray res;
@@ -45,6 +35,50 @@ QByteArray decode(const QByteArray &a)
 
 
 
+class Stream
+{
+public:
+    static
+    Stream fromBase64(const QByteArray &base64)
+    {
+        return Stream(decode(QByteArray::fromBase64(base64)));
+    }
+
+    void seek(int pos) { _pos = pos; }
+
+    template<typename T>
+    T next()
+    {
+        if (sizeof(T) == 1) {
+            T res = (T)_data[_pos];
+            _pos += 1;
+            return res;
+        }
+        else if (sizeof(T) == 2) {
+            T res = (T)(quint16(_data[_pos] << 8) | quint8(_data[_pos+1]));
+            _pos += 2;
+            return res;
+        }
+    }
+
+private:
+    Stream(const QByteArray &data) : _data (data), _pos (0) {}
+    const QByteArray _data;
+    int _pos;
+};
+
+
+
+struct Primitive
+{
+    int x;
+    int y;
+    int num;
+    int color;
+};
+
+
+
 class DPoly
 {
 public:
@@ -55,16 +89,15 @@ public:
         m_buf (NULL),
         m_scale (2),
         m_opcode (255),
-        m_pos (0),
+        m_cmd (Stream::fromBase64(dat_cmd)),
+        m_pol (Stream::fromBase64(dat_pol)),
         m_primitives_clear (false)
     {
-        m_cmd = decode(QByteArray::fromBase64(dat_cmd));
-        m_pol = decode(QByteArray::fromBase64(dat_pol));
     }
 
     void start()
     {
-        m_pos = 2;
+        m_cmd.seek(2);
         m_playing = true;
         setDefaultPalette();
     }
@@ -74,42 +107,6 @@ public:
         m_playing = !m_playing;
     }
 
-private:
-    quint8 read_uint8(const QByteArray &a, quint32 idx)
-    {
-        return a[idx];
-    }
-
-    qint8 read_int8(const QByteArray &a, quint32 idx)
-    {
-        return a[idx];
-    }
-
-    quint16 read_uint16(const QByteArray &a, quint32 idx)
-    {
-        return quint16(a[idx] << 8) | quint8(a[idx+1]);
-    }
-
-    qint16 read_int16(const QByteArray &a, quint32 idx)
-    {
-        return quint16(a[idx] << 8) | quint8(a[idx+1]);
-    }
-
-    quint8 readNextByte()
-    {
-        quint8 res = read_uint8(m_cmd, m_pos);
-        m_pos += 1;
-        return res;
-    }
-
-    quint16 readNextWord()
-    {
-        quint16 res = read_uint16(m_cmd, m_pos);
-        m_pos += 2;
-        return res;
-    }
-
-public:
     bool doTick()
     {
         if (!m_playing)
@@ -121,9 +118,9 @@ public:
         }
 
         while (m_yield == 0) {
-            auto a = readNextByte();
-            if (a & 128) {
-                m_pos = 2;
+            auto a = m_cmd.next<quint8>();
+            if (a & (1 << 7)) {
+                m_cmd.seek(2);
                 setDefaultPalette();
             }
             else {
@@ -133,60 +130,69 @@ public:
                 case 9:
                     return true;// update needed
                 case 1:
-                    m_clear = bool(readNextByte());
+                    m_clear = bool(m_cmd.next<quint8>());
                     clearScreen();
                     break;
                 case 2:
-                    m_yield = readNextByte() * 4;
+                    m_yield = m_cmd.next<quint8>() * 4;
                     break;
                 case 3:{
-                    auto a = readNextWord();
+                    auto a = m_cmd.next<quint16>();
                     qint16 c = 0;
                     qint16 b = 0;
-                    if (a & 32768) {
-                        a &= 32767;
-                        c = (qint16)readNextWord();
-                        b = (qint16)readNextWord();
+                    if (a & (1 << 15)) {
+                        a &= 0x7FFF;
+                        c = m_cmd.next<qint16>();
+                        b = m_cmd.next<qint16>();
                     }
                     drawShape(a, c, b);
                 } break;
                 case 4: {
-                    auto a = readNextByte();
-                    auto c = readNextByte();
+                    auto a = m_cmd.next<quint8>();
+                    auto c = m_cmd.next<quint8>();
                     setPalette(a, c);
                 } break;
                 case 10: {
-                    auto a = readNextWord();
+                    auto a = m_cmd.next<quint16>();
                     qint16 b = 0;
                     qint16 c = 0;
-                    if (a & 32768) {
-                        a &= 32767;
-                        c = (qint16)readNextWord();
-                        b = (qint16)readNextWord();
+                    if (a & (1 << 15)) {
+                        a &= 0x7FFF;
+                        c = m_cmd.next<qint16>();
+                        b = m_cmd.next<qint16>();
                     }
-                    auto e = 512 + readNextWord();
-                    auto d = readNextByte();
-                    auto f = readNextByte();
+                    auto e = 512 + m_cmd.next<quint16>();
+                    auto d = m_cmd.next<quint8>();
+                    auto f = m_cmd.next<quint8>();
                     //drawShapeScale(a, c, b, e, d, f);
                 } break;
                 case 11: {
-                    auto a = readNextWord();
+                    auto a = m_cmd.next<quint16>();
                     qint16 b = 0;
                     qint16 c = 0;
-                    if (a & 32768) {
-                        a &= 32767;
-                        c = (qint16)readNextWord();
-                        b = (qint16)readNextWord();
+                    if (a & (1 << 15)) {
+                        a &= 0x7FFF;
+                        c = m_cmd.next<qint16>();
+                        b = m_cmd.next<qint16>();
                     }
-                    auto e = 512;
-                    a & 16384 && (a &= 16383, e += readNextWord());
-                    auto d = readNextByte();
-                    auto f = readNextByte();
-                    auto g = readNextWord();
-                    auto h = 90;
-                    a & 8192 && (a &= 8191, h = readNextWord());
-                    auto i = 180;
-                    a & 4096 && (a &= 4095, i = readNextWord());
+                    quint16 e = 512;
+                    if (a & (1 << 14)) {
+                        a &= 0x3FFF;
+                        e += m_cmd.next<quint16>();
+                    }
+                    auto d = m_cmd.next<quint8>();
+                    auto f = m_cmd.next<quint8>();
+                    auto g = m_cmd.next<quint16>();
+                    quint16 h = 90;
+                    if (a & (1 << 13)) {
+                        a &= 0x1FFF;
+                        h = m_cmd.next<quint16>();
+                    }
+                    quint16 i = 180;
+                    if (a & (1 << 12)) {
+                        a &= 0xFFF;
+                        i = m_cmd.next<quint16>();
+                    }
                     //drawShapeScaleRotate(a, c, b, e, d, f, g, h, i);
                 } break;
                 case 12:
@@ -229,25 +235,23 @@ private:
 
     void drawShape(int offset, int shape_x, int shape_y)
     {
-        const auto shape_offset_index = read_uint16(m_pol, 2);
-        offset = read_uint16(m_pol, shape_offset_index + offset * 2);
-        const auto shape_data_index = read_uint16(m_pol, 14);
-        auto read_counter = shape_data_index + offset;
-        auto shape_size = read_uint16(m_pol, read_counter);
-        read_counter += 2;
+        m_pol.seek(2);
+        const auto shape_offset_index = m_pol.next<quint16>();
+        m_pol.seek(shape_offset_index + offset * 2);
+        offset = m_pol.next<quint16>();
+        m_pol.seek(14);
+        const auto shape_data_index = m_pol.next<quint16>();
+        m_pol.seek(shape_data_index + offset);
+        auto shape_size = m_pol.next<quint16>();
         for (int i=0; i < shape_size; ++i) {
-            auto const primitive_header = read_uint16(m_pol, read_counter);
-            read_counter += 2;
+            auto const primitive_header = m_pol.next<quint16>();
             int x = 0, y = 0;
             if (primitive_header & (1 << 15)) {
-                x = read_int16(m_pol, read_counter);
-                read_counter += 2;
-                y = read_int16(m_pol, read_counter);
-                read_counter += 2;
+                x = m_pol.next<qint16>();
+                y = m_pol.next<qint16>();
             }
             bool unused = primitive_header & (1 << 14);
-            auto color_index = read_uint8(m_pol, read_counter);
-            read_counter++;
+            auto color_index = m_pol.next<quint8>();
             if (!m_clear)
                 color_index += 16;
             // queue primitive
@@ -274,12 +278,14 @@ private:
         }
     }
 
-    void setPalette(int a, int c)
+    void setPalette(int offset, int c)
     {
-        auto cursor = read_uint16(m_pol, 6) + a * 32;
+        m_pol.seek(6);
+        const auto palette_index = m_pol.next<quint16>();
+        m_pol.seek(palette_index + offset * 32);
         const auto off = (c == 0) ? 16 : 0;
         for (size_t i = 0; i < 16; i++) {
-            const auto color = read_uint16(m_pol, cursor); cursor += 2;
+            const auto color = m_pol.next<quint16>();
             const quint8 t = (color == 0) ? 0 : 3;
             const int r = (((color & 0xF00) >> 6) | t) * 3;
             const int g = (((color & 0x0F0) >> 2) | t) * 3;
@@ -290,21 +296,24 @@ private:
 
     void drawPrimitive(const Primitive &primitive, QPainter &painter)
     {
-        const auto vertices_offset_index = read_uint16(m_pol, 10);
-        const auto num_off = read_uint16(m_pol, vertices_offset_index + primitive.num * 2);
-        const auto vertices_data_index = read_uint16(m_pol, 18);
-        auto cursor = vertices_data_index + num_off;
-        auto num_vertices = read_uint8(m_pol, cursor); cursor++;
-        int x = primitive.x + (read_int16(m_pol, cursor)); cursor += 2;
-        int y = primitive.y + (read_int16(m_pol, cursor)); cursor += 2;
+        m_pol.seek(10);
+        const auto vertices_offset_index = m_pol.next<quint16>();
+        m_pol.seek(vertices_offset_index + primitive.num * 2);
+        const auto num_off = m_pol.next<quint16>();
+        m_pol.seek(18);
+        const auto vertices_data_index = m_pol.next<quint16>();
+        m_pol.seek(vertices_data_index + num_off);
+        auto num_vertices = m_pol.next<quint8>();
+        int x = primitive.x + m_pol.next<qint16>();
+        int y = primitive.y + m_pol.next<qint16>();
         painter.setBrush(m_palette[primitive.color]);
         painter.setPen(m_palette[primitive.color]);
         painter.save();
         painter.scale(m_scale, m_scale);
-        if (num_vertices & 128) {
+        if (num_vertices & (1 << 7)) {
             painter.translate(x, y);
-            auto center_x = (read_int16(m_pol, cursor)); cursor += 2;
-            auto center_y = (read_int16(m_pol, cursor)); cursor += 2;
+            auto center_x = m_pol.next<qint16>();
+            auto center_y = m_pol.next<qint16>();
             painter.drawEllipse(QPointF(0,0), center_x, center_y);
         }
         else if (num_vertices == 0) {
@@ -313,8 +322,8 @@ private:
         else {
             QPainterPath path(QPointF(x, y));
             for (auto i = 0; i < num_vertices; ++i) {
-                auto g = (read_int8(m_pol, cursor)); cursor++;
-                auto h = (read_int8(m_pol, cursor)); cursor++;
+                auto g = m_pol.next<qint8>();
+                auto h = m_pol.next<qint8>();
                 x += g;
                 y += h;
                 path.lineTo(x, y);
@@ -339,9 +348,8 @@ private:
     int m_opcode;
     QList<Primitive> m_primitives;
     QList<Primitive> m_savedPrimitives;
-    QByteArray m_cmd;
-    QByteArray m_pol;
-    int m_pos;
+    Stream m_cmd;
+    Stream m_pol;
     bool m_primitives_clear;
 };
 
