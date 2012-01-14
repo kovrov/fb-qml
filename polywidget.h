@@ -16,8 +16,8 @@ public:
     ~PolyWidget();
 
 protected:
-     void paintEvent(QPaintEvent *event);
-     void timerEvent(QTimerEvent *event);
+    void paintEvent(QPaintEvent *event);
+    void timerEvent(QTimerEvent *event);
 
 private:
     DPoly *m_poly;
