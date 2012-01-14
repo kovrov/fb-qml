@@ -83,7 +83,6 @@ class DPoly
 public:
     DPoly()
       : m_playing (false),
-        m_frame_delay (0),
         m_clear (false),
         m_scale (2),
         m_cmd (Stream::fromBase64(dat_cmd)),
@@ -104,122 +103,112 @@ public:
         m_playing = !m_playing;
     }
 
-    bool doTick()
+    bool doTick(int &wait)
     {
         if (!m_playing)
             return false;
 
-        if (m_frame_delay != 0) {
-            m_frame_delay -= 1;
-            return false;
+        if (m_start_new_shot) {
+            m_start_new_shot = false;
+            m_foreground_primitives.clear();
         }
 
-        while (m_frame_delay == 0) {
+        while (true) {
             const auto opcode = m_cmd.next<quint8>();
-            if (opcode & (1 << 7)) {
-                m_cmd.seek(2);
-                setDefaultPalette();
+            if (opcode & (1 << 7)){
+                break;
             }
-            else {
-                switch (opcode >> 2) {
-                case 0:
-                case 5:
-                case 9:
-                    return true;// update needed
-                case 1:
-                    m_clear = bool(m_cmd.next<quint8>());
-                    clearScreen();
-                    break;
-                case 2:
-                    m_frame_delay = m_cmd.next<quint8>() * 4;
-                    break;
-                case 3:{
-                    const auto shape_offset = m_cmd.next<quint16>();
-                    qint16 x = 0, y = 0;
-                    if (shape_offset & (1 << 15)) {
-                        x = m_cmd.next<qint16>();
-                        y = m_cmd.next<qint16>();
-                    }
-                    drawShape(shape_offset & 0x7FFF, x, y);
-                } break;
-                case 4: {
-                    const auto palette_index = m_cmd.next<quint8>();
-                    const auto pal_num = m_cmd.next<quint8>();
-                    setPalette(palette_index, pal_num);
-                } break;
-                case 10: {
-                    const auto shape_offset = m_cmd.next<quint16>();
-                    qint16 x = 0, y = 0;
-                    if (shape_offset & (1 << 15)) {
-                        y = m_cmd.next<qint16>();
-                        x = m_cmd.next<qint16>();
-                    }
-                    const auto zoom = 512 + m_cmd.next<quint16>();
-                    const auto pivot_x = m_cmd.next<quint8>();
-                    const auto pivot_y = m_cmd.next<quint8>();
-                    //drawShapeScale(shape_offset & 0x7FFF, x, y, zoom, pivot_x, pivot_y);
-                } break;
-                case 11: {
-                    const auto shape_offset = m_cmd.next<quint16>();
-                    qint16 x = 0, y = 0;
-                    if (shape_offset & (1 << 15)) {
-                        y = m_cmd.next<qint16>();
-                        x = m_cmd.next<qint16>();
-                    }
-                    quint16 zoom = 512;
-                    if (shape_offset & (1 << 14)) {
-                        zoom += m_cmd.next<quint16>();
-                    }
-                    const auto pivot_x = m_cmd.next<quint8>();
-                    const auto pivot_y = m_cmd.next<quint8>();
-                    const auto r1 = m_cmd.next<quint16>();
-                    quint16 r2 = 90;
-                    if (shape_offset & (1 << 13)) {
-                        r2 = m_cmd.next<quint16>();
-                    }
-                    quint16 r3 = 180;
-                    if (shape_offset & (1 << 12)) {
-                        r3 = m_cmd.next<quint16>();
-                    }
-                    //drawShapeScaleRotate(shape_offset & 0xFFF, y, x, zoom, pivot_x, pivot_y, r1, r2, r3);
-                } break;
-                case 12:
-                    m_frame_delay = 10;
-                    break;
-                default:
-                    m_playing = false;
+
+            switch (opcode >> 2) {
+            case 0:
+            case 5:
+            case 9:
+                m_start_new_shot = true;
+                wait = 75;
+                return true;// update needed
+            case 1:
+                m_clear = bool(m_cmd.next<quint8>());
+                if (m_clear)
+                    m_backdrop_primitives.clear();
+                break;
+            case 2: {  // sleep
+                const auto frame_delay = m_cmd.next<quint8>();
+                wait = frame_delay * 60;
+            }   return false;
+            case 3:{
+                const auto shape_offset = m_cmd.next<quint16>();
+                qint16 x = 0, y = 0;
+                if (shape_offset & (1 << 15)) {
+                    x = m_cmd.next<qint16>();
+                    y = m_cmd.next<qint16>();
                 }
+                drawShape(shape_offset & 0x7FFF, x, y);
+            } break;
+            case 4: {
+                const auto palette_index = m_cmd.next<quint8>();
+                const auto pal_num = m_cmd.next<quint8>();
+                setPalette(palette_index, pal_num);
+            } break;
+            case 10: {
+                const auto shape_offset = m_cmd.next<quint16>();
+                qint16 x = 0, y = 0;
+                if (shape_offset & (1 << 15)) {
+                    y = m_cmd.next<qint16>();
+                    x = m_cmd.next<qint16>();
+                }
+                const auto zoom = 512 + m_cmd.next<quint16>();
+                const auto pivot_x = m_cmd.next<quint8>();
+                const auto pivot_y = m_cmd.next<quint8>();
+                //drawShapeScale(shape_offset & 0x7FFF, x, y, zoom, pivot_x, pivot_y);
+            } break;
+            case 11: {
+                const auto shape_offset = m_cmd.next<quint16>();
+                qint16 x = 0, y = 0;
+                if (shape_offset & (1 << 15)) {
+                    y = m_cmd.next<qint16>();
+                    x = m_cmd.next<qint16>();
+                }
+                quint16 zoom = 512;
+                if (shape_offset & (1 << 14)) {
+                    zoom += m_cmd.next<quint16>();
+                }
+                const auto pivot_x = m_cmd.next<quint8>();
+                const auto pivot_y = m_cmd.next<quint8>();
+                const auto r1 = m_cmd.next<quint16>();
+                quint16 r2 = 90;
+                if (shape_offset & (1 << 13)) {
+                    r2 = m_cmd.next<quint16>();
+                }
+                quint16 r3 = 180;
+                if (shape_offset & (1 << 12)) {
+                    r3 = m_cmd.next<quint16>();
+                }
+                //drawShapeScaleRotate(shape_offset & 0xFFF, y, x, zoom, pivot_x, pivot_y, r1, r2, r3);
+            } break;
+            case 12:
+                wait = 150;
+                break;
+            default:
+                m_playing = false;
             }
         }
+        m_cmd.seek(2);
+        setDefaultPalette();
         return false;
     }
 
     void updateScreen(QPainter &painter, const QRect &rect)
     {
         painter.fillRect(rect, QColor(0, 0, 0));
+        foreach (const auto &primitive, m_backdrop_primitives) {
+            drawPrimitive(primitive, painter);
+        }
         foreach (const auto &primitive, m_foreground_primitives) {
             drawPrimitive(primitive, painter);
         }
-
-        if (m_clear) {
-            m_foreground_primitives.clear();
-            m_start_new_shot = true;
-        }
-        else {
-            m_foreground_primitives = m_backdrop_primitives; // cow
-        }
-
-        m_frame_delay = 5;
     }
 
 private:
-    void clearScreen()
-    {
-        if (m_clear) {
-            m_start_new_shot = true;
-        }
-    }
-
     void drawShape(int offset, int shape_x, int shape_y)
     {
         m_pol.seek(2);
@@ -241,10 +230,12 @@ private:
             const auto color_index = m_pol.next<quint8>() + (m_clear ? 0 : 16);
             // queue primitive
             Primitive p = {shape_x + x, shape_y + y, primitive_header & 0x3FFF, color_index};
-            m_foreground_primitives.append(p);
-        }
-        if (m_clear) {
-            m_backdrop_primitives = m_foreground_primitives; // cow
+            if (m_clear) {
+                m_backdrop_primitives.append(p);
+            }
+            else {
+                m_foreground_primitives.append(p);
+            }
         }
     }
 
@@ -325,7 +316,6 @@ private:
     }
 
     bool m_playing;
-    int m_frame_delay;
     bool m_clear;
     QColor m_palette[32];
     int m_scale;
@@ -343,7 +333,7 @@ PolyWidget::PolyWidget(QWidget *parent)
     m_poly (new DPoly)
 {
     m_poly->start();
-    startTimer(20);
+    startTimer(0);
 }
 
 
@@ -353,10 +343,13 @@ PolyWidget::~PolyWidget()
 }
 
 
-void PolyWidget::timerEvent(QTimerEvent *)
+void PolyWidget::timerEvent(QTimerEvent *ev)
 {
-    if (m_poly->doTick())
+    killTimer(ev->timerId());
+    int wait = 0;
+    if (m_poly->doTick(wait))
         update();
+    startTimer(wait);
 }
 
 
