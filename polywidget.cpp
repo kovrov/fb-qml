@@ -24,7 +24,7 @@ QByteArray decode(const QByteArray &array)
             else {
                 const quint16 f = quint16(array[idx] << 8) | quint8(array[idx+1]);
                 idx += 2;
-                for (auto j = 0; j < (f >> 12) + 3; ++j) {
+                for (auto j = 0; j < ((f >> 12) + 3); ++j) {
                     res += res[res.length() - (f & 0xFFF)];
                 }
             }
@@ -44,6 +44,7 @@ public:
     }
 
     void seek(int pos) { _pos = pos; }
+    int pos() const { return _pos; }
 
     template<typename T>
     T next()
@@ -72,8 +73,8 @@ struct Primitive
 {
     int x;
     int y;
-    int num;
     int color;
+    QPainterPath path;
 };
 
 
@@ -84,7 +85,7 @@ public:
     DPoly()
       : m_playing (false),
         m_clear (false),
-        m_scale (2),
+        m_scale (3),
         m_cmd (Stream::fromBase64(dat_cmd)),
         m_pol (Stream::fromBase64(dat_pol)),
         m_start_new_shot (false)
@@ -95,7 +96,9 @@ public:
     {
         m_cmd.seek(2);
         m_playing = true;
-        setDefaultPalette();
+        // set default palette
+        for (auto i = 0; i < 16; i++)
+            m_palette[i] = m_palette[16 + i] = QColor(i, i, i);
     }
 
     void pause()
@@ -115,9 +118,8 @@ public:
 
         while (true) {
             const auto opcode = m_cmd.next<quint8>();
-            if (opcode & (1 << 7)){
+            if (opcode & (1 << 7))
                 break;
-            }
 
             switch (opcode >> 2) {
             case 0:
@@ -125,7 +127,7 @@ public:
             case 9:
                 m_start_new_shot = true;
                 wait = 75;
-                return true;// update needed
+                return true;  // update needed
             case 1:
                 m_clear = bool(m_cmd.next<quint8>());
                 if (m_clear)
@@ -156,10 +158,11 @@ public:
                     y = m_cmd.next<qint16>();
                     x = m_cmd.next<qint16>();
                 }
-                const auto zoom = 512 + m_cmd.next<quint16>();
+                quint16 zoom = 512;
+                zoom += m_cmd.next<quint16>();  // expect to overflow
                 const auto pivot_x = m_cmd.next<quint8>();
                 const auto pivot_y = m_cmd.next<quint8>();
-                //drawShapeScale(shape_offset & 0x7FFF, x, y, zoom, pivot_x, pivot_y);
+                drawShape(shape_offset & 0x7FFF, x, y, double(zoom)/512.0, pivot_x, pivot_y);
             } break;
             case 11: {
                 const auto shape_offset = m_cmd.next<quint16>();
@@ -170,7 +173,7 @@ public:
                 }
                 quint16 zoom = 512;
                 if (shape_offset & (1 << 14)) {
-                    zoom += m_cmd.next<quint16>();
+                    zoom += m_cmd.next<quint16>();  // expect to overflow
                 }
                 const auto pivot_x = m_cmd.next<quint8>();
                 const auto pivot_y = m_cmd.next<quint8>();
@@ -183,33 +186,46 @@ public:
                 if (shape_offset & (1 << 12)) {
                     r3 = m_cmd.next<quint16>();
                 }
-                //drawShapeScaleRotate(shape_offset & 0xFFF, y, x, zoom, pivot_x, pivot_y, r1, r2, r3);
+                drawShape(shape_offset & 0xFFF, y, x, double(zoom)/512.0, pivot_x, pivot_y, r1, r2, r3);
             } break;
             case 12:
                 wait = 150;
-                break;
+                return false;
             default:
                 m_playing = false;
             }
         }
-        m_cmd.seek(2);
-        setDefaultPalette();
+        start();
         return false;
     }
 
-    void updateScreen(QPainter &painter, const QRect &rect)
+    static void _drawNode(QPainter &painter, const Primitive &primitive, const QColor &color)
+    {
+        QPen pen(color);
+        pen.setWidth(1);
+        pen.setJoinStyle(Qt::MiterJoin);
+        painter.save();
+        painter.setPen(pen);
+        painter.setBrush(color);
+        painter.translate(primitive.x, primitive.y);
+        painter.drawPath(primitive.path);
+        painter.restore();
+    }
+
+    void drawScene(QPainter &painter, const QRect &rect)
     {
         painter.fillRect(rect, QColor(0, 0, 0));
+        painter.scale(m_scale, m_scale);
         foreach (const auto &primitive, m_backdrop_primitives) {
-            drawPrimitive(primitive, painter);
+            _drawNode(painter, primitive,  m_palette[primitive.color]);
         }
         foreach (const auto &primitive, m_foreground_primitives) {
-            drawPrimitive(primitive, painter);
+            _drawNode(painter, primitive, m_palette[primitive.color]);
         }
     }
 
 private:
-    void drawShape(int offset, int shape_x, int shape_y)
+    void drawShape(int offset, int shape_x, int shape_y, double zoom=1.0, int pivot_x=0, int pivot_y=0, int r1=1, int r2=1, int r3=1)
     {
         m_pol.seek(2);
         const auto shape_offset_index = m_pol.next<quint16>();
@@ -229,28 +245,15 @@ private:
             bool unused = primitive_header & (1 << 14);
             const auto color_index = m_pol.next<quint8>() + (m_clear ? 0 : 16);
             // queue primitive
-            Primitive p = {shape_x + x, shape_y + y, primitive_header & 0x3FFF, color_index};
+            auto pos = m_pol.pos();
+            Primitive p = {shape_x + x, shape_y + y, color_index, drawPrimitive(primitive_header & 0x3FFF)};
+            m_pol.seek(pos);
             if (m_clear) {
                 m_backdrop_primitives.append(p);
             }
             else {
                 m_foreground_primitives.append(p);
             }
-        }
-    }
-
-    void drawShapeScale()
-    {
-    }
-
-    void drawShapeScaleRotate()
-    {
-    }
-
-    void setDefaultPalette()
-    {
-        for (auto i = 0; i < 16; i++) {
-            m_palette[i] = m_palette[16 + i] = QColor(i, i, i);
         }
     }
 
@@ -270,33 +273,30 @@ private:
         }
     }
 
-    void drawPrimitive(const Primitive &primitive, QPainter &painter)
+    QPainterPath drawPrimitive(const int primitive_num)
     {
         m_pol.seek(10);
         const auto vertices_offset_index = m_pol.next<quint16>();
-        m_pol.seek(vertices_offset_index + primitive.num * 2);
+        m_pol.seek(vertices_offset_index + primitive_num * 2);
         const auto num_off = m_pol.next<quint16>();
         m_pol.seek(18);
         const auto vertices_data_index = m_pol.next<quint16>();
         m_pol.seek(vertices_data_index + num_off);
         const auto num_vertices = m_pol.next<quint8>();
-        int x = primitive.x + m_pol.next<qint16>();
-        int y = primitive.y + m_pol.next<qint16>();
-        painter.setBrush(m_palette[primitive.color]);
-        painter.setPen(m_palette[primitive.color]);
-        painter.save();
-        painter.scale(m_scale, m_scale);
+        int x = m_pol.next<qint16>();
+        int y = m_pol.next<qint16>();
+
+        QPainterPath path;
         if (num_vertices & (1 << 7)) {
-            painter.translate(x, y);
             const auto center_x = m_pol.next<qint16>();
             const auto center_y = m_pol.next<qint16>();
-            painter.drawEllipse(QPointF(0,0), center_x, center_y);
+            path.addEllipse(QPointF(x, y), center_x, center_y);
         }
         else if (num_vertices == 0) {
-            painter.fillRect(QRectF(x, y, m_scale, m_scale), m_palette[primitive.color]);
+            path.addRect(QRectF(x, y, 1, 1));
         }
         else {
-            QPainterPath path(QPointF(x, y));
+            path.moveTo(x, y);
             for (auto i = 0; i < num_vertices; ++i) {
                 const auto g = m_pol.next<qint8>();
                 const auto h = m_pol.next<qint8>();
@@ -304,15 +304,8 @@ private:
                 y += h;
                 path.lineTo(x, y);
             }
-            path.closeSubpath();
-            if (num_vertices <= 2) {
-                painter.strokePath(path, m_palette[primitive.color]);
-            }
-            else {
-                painter.fillPath(path, m_palette[primitive.color]);
-            }
         }
-        painter.restore();
+        return path;
     }
 
     bool m_playing;
@@ -356,5 +349,5 @@ void PolyWidget::timerEvent(QTimerEvent *ev)
 void PolyWidget::paintEvent(QPaintEvent *event)
 {
     QPainter painter(this);
-    m_poly->updateScreen(painter, event->rect());
+    m_poly->drawScene(painter, event->rect());
 }
