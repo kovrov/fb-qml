@@ -73,11 +73,17 @@ private:
 
 struct Primitive
 {
-    int x;
-    int y;
+    QMatrix transform;
     int color;
     QPainterPath path;
+};
+
+
+
+struct Shape
+{
     QMatrix transform;
+    QList<Primitive> primitives;
 };
 
 
@@ -207,34 +213,37 @@ public:
         return false;
     }
 
-    static void _drawNode(QPainter &painter, const Primitive &primitive, const QColor &color, qreal scale)
+    void _drawNode(QPainter &painter, const Shape &shape)
     {
-        QPen pen(color);
-        pen.setWidth(1);
-        pen.setJoinStyle(Qt::MiterJoin);
-        painter.save();
-        painter.setPen(pen);
-        painter.setBrush(color);
-        auto transform = QMatrix().translate(primitive.x, primitive.y) * primitive.transform * QMatrix().scale(scale, scale);
-        painter.setMatrix(transform);
-        painter.drawPath(primitive.path);
-        painter.restore();
+        auto scale_matrix = QMatrix().scale(m_scale, m_scale);
+        foreach (const auto &primitive, shape.primitives) {
+            const QColor &color = m_palette[primitive.color];
+            QPen pen(color);
+            pen.setWidth(1);
+            pen.setJoinStyle(Qt::MiterJoin);
+            painter.setPen(pen);
+            painter.setBrush(color);
+            painter.setMatrix(primitive.transform * shape.transform * scale_matrix);
+            painter.drawPath(primitive.path);
+        }
     }
 
     void drawScene(QPainter &painter, const QRect &rect)
     {
         painter.fillRect(rect, QColor(0, 0, 0));
         foreach (const auto &primitive, m_backdrop_primitives) {
-            _drawNode(painter, primitive,  m_palette[primitive.color], m_scale);
+            _drawNode(painter, primitive);
         }
         foreach (const auto &primitive, m_foreground_primitives) {
-            _drawNode(painter, primitive, m_palette[primitive.color], m_scale);
+            _drawNode(painter, primitive);
         }
     }
 
 private:
     void drawShape(int offset, const QMatrix &transform)
     {
+        Shape shape = { transform };
+
         m_pol.seek(2);
         const auto shape_offset_index = m_pol.next<quint16>();
         m_pol.seek(shape_offset_index + offset * 2);
@@ -254,16 +263,17 @@ private:
             const auto color_index = m_pol.next<quint8>() + (m_clear ? 0 : 16);
             // queue primitive
             auto pos = m_pol.pos();
-            Primitive p = {x, y, color_index, drawPrimitive(primitive_header & 0x3FFF)};
+            Primitive p = {QMatrix().translate(x, y), color_index, drawPrimitive(primitive_header & 0x3FFF)};
             m_pol.seek(pos);
-            p.transform = transform;
+            shape.primitives.append(p);
+        }
 
-            if (m_clear) {
-                m_backdrop_primitives.append(p);
-            }
-            else {
-                m_foreground_primitives.append(p);
-            }
+
+        if (m_clear) {
+            m_backdrop_primitives.append(shape);
+        }
+        else {
+            m_foreground_primitives.append(shape);
         }
     }
 
@@ -322,8 +332,8 @@ private:
     bool m_clear;
     QColor m_palette[32];
     int m_scale;
-    QList<Primitive> m_foreground_primitives;
-    QList<Primitive> m_backdrop_primitives;
+    QList<Shape> m_foreground_primitives;
+    QList<Shape> m_backdrop_primitives;
     Stream m_cmd;
     Stream m_pol;
     bool m_start_new_shot;
