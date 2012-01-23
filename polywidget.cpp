@@ -73,7 +73,7 @@ private:
 
 struct Primitive
 {
-    QMatrix transform;
+    QTransform transform;
     int color;
     QPainterPath path;
 };
@@ -82,7 +82,7 @@ struct Primitive
 
 struct Shape
 {
-    QMatrix transform;
+    QTransform transform;
     QList<Primitive> primitives;
 };
 
@@ -153,7 +153,7 @@ public:
                     x = m_cmd.next<qint16>();
                     y = m_cmd.next<qint16>();
                 }
-                drawShape(shape_offset & 0x7FFF, QMatrix().translate(x, y));
+                addShape(shape_offset & 0x7FFF, QTransform().fromTranslate(x, y));
             } break;
             case 4: {
                 const auto palette_index = m_cmd.next<quint8>();
@@ -172,11 +172,11 @@ public:
                 const auto pivot_x = m_cmd.next<quint8>();
                 const auto pivot_y = m_cmd.next<quint8>();
 
-                QMatrix pos_matrix = QMatrix().translate(x, y);
-                QMatrix scaling_matrix = QMatrix().scale(double(zoom)/512.0, double(zoom)/512.0);
-                QMatrix pivot_origin = QMatrix().translate(-pivot_x, -pivot_y);
-                QMatrix restore_origin = QMatrix().translate(pivot_x, pivot_y);
-                drawShape(shape_offset & 0x7FFF, pivot_origin * scaling_matrix * restore_origin * pos_matrix);
+                auto pos_matrix = QTransform().fromTranslate(x, y);
+                auto scaling_matrix = QTransform().fromScale(double(zoom)/512.0, double(zoom)/512.0);
+                auto pivot_origin = QTransform().fromTranslate(-pivot_x, -pivot_y);
+                auto restore_origin = QTransform().fromTranslate(pivot_x, pivot_y);
+                addShape(shape_offset & 0x7FFF, pivot_origin * scaling_matrix * restore_origin * pos_matrix);
             } break;
             case 11: {
                 const auto shape_offset = m_cmd.next<quint16>();
@@ -200,7 +200,7 @@ public:
                 if (shape_offset & (1 << 12)) {
                     r3 = m_cmd.next<quint16>();
                 }
-//                drawShape(shape_offset & 0xFFF, y, x, double(zoom)/512.0, pivot_x, pivot_y, r1, r2, r3);
+//                addShape(shape_offset & 0xFFF, y, x, double(zoom)/512.0, pivot_x, pivot_y, r1, r2, r3);
             } break;
             case 12:
                 wait = 150;
@@ -215,7 +215,7 @@ public:
 
     void _drawNode(QPainter &painter, const Shape &shape)
     {
-        auto scale_matrix = QMatrix().scale(m_scale, m_scale);
+        auto scale_matrix = QTransform().fromScale(m_scale, m_scale);
         foreach (const auto &primitive, shape.primitives) {
             const QColor &color = m_palette[primitive.color];
             QPen pen(color);
@@ -223,7 +223,7 @@ public:
             pen.setJoinStyle(Qt::MiterJoin);
             painter.setPen(pen);
             painter.setBrush(color);
-            painter.setMatrix(primitive.transform * shape.transform * scale_matrix);
+            painter.setTransform(primitive.transform * shape.transform * scale_matrix);
             painter.drawPath(primitive.path);
         }
     }
@@ -240,7 +240,7 @@ public:
     }
 
 private:
-    void drawShape(int offset, const QMatrix &transform)
+    void addShape(int offset, const QTransform &transform)
     {
         Shape shape = { transform };
 
@@ -263,7 +263,7 @@ private:
             const auto color_index = m_pol.next<quint8>() + (m_clear ? 0 : 16);
             // queue primitive
             auto pos = m_pol.pos();
-            Primitive p = {QMatrix().translate(x, y), color_index, drawPrimitive(primitive_header & 0x3FFF)};
+            Primitive p = {QTransform().fromTranslate(x, y), color_index, drawPrimitive(primitive_header & 0x3FFF)};
             m_pol.seek(pos);
             shape.primitives.append(p);
         }
