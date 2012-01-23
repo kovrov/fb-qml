@@ -5,32 +5,8 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPainterPath>
+#include <QtEndian>
 #include <qdebug.h>
-
-
-
-QByteArray decode(const QByteArray &array)
-{
-    QByteArray res;
-    auto idx = 0;
-    while (idx < array.length()) {
-        const quint8 e = array[idx];
-        ++idx;
-        for (auto i = 0; i < 8 && idx < array.length(); ++i)
-            if ((e & 1 << i) == 0) {
-                res += array[idx];
-                ++idx;
-            }
-            else {
-                const quint16 f = quint16(array[idx] << 8) | quint8(array[idx+1]);
-                idx += 2;
-                for (auto j = 0; j < ((f >> 12) + 3); ++j) {
-                    res += res[res.length() - (f & 0xFFF)];
-                }
-            }
-    }
-    return res;
-}
 
 
 
@@ -55,7 +31,8 @@ public:
             return res;
         }
         else if (sizeof(T) == 2) {
-            T res = (T)(quint16(_data[_pos] << 8) | quint8(_data[_pos+1]));
+            auto data = (const uchar*)_data.constData();
+            T res = qFromBigEndian<T>(data + _pos);
             _pos += 2;
             return res;
         }
@@ -63,6 +40,31 @@ public:
 
 private:
     Stream(const QByteArray &data) : _data (data), _pos (0) {}
+
+    static
+    QByteArray decode(const QByteArray &array)
+    {
+        QByteArray res;
+        auto idx = 0;
+        while (idx < array.length()) {
+            const quint8 e = array[idx];
+            ++idx;
+            for (auto i = 0; i < 8 && idx < array.length(); ++i)
+                if ((e & 1 << i) == 0) {
+                    res += array[idx];
+                    ++idx;
+                }
+                else {
+                    const quint16 f = quint16(array[idx] << 8) | quint8(array[idx+1]);
+                    idx += 2;
+                    for (auto j = 0; j < ((f >> 12) + 3); ++j) {
+                        res += res[res.length() - (f & 0xFFF)];
+                    }
+                }
+        }
+        return res;
+    }
+
     const QByteArray _data;
     int _pos;
 };
@@ -75,6 +77,7 @@ struct Primitive
     int y;
     int color;
     QPainterPath path;
+    QMatrix transform;
 };
 
 
@@ -144,7 +147,7 @@ public:
                     x = m_cmd.next<qint16>();
                     y = m_cmd.next<qint16>();
                 }
-                drawShape(shape_offset & 0x7FFF, x, y);
+                drawShape(shape_offset & 0x7FFF, QMatrix().translate(x, y));
             } break;
             case 4: {
                 const auto palette_index = m_cmd.next<quint8>();
@@ -155,14 +158,19 @@ public:
                 const auto shape_offset = m_cmd.next<quint16>();
                 qint16 x = 0, y = 0;
                 if (shape_offset & (1 << 15)) {
-                    y = m_cmd.next<qint16>();
                     x = m_cmd.next<qint16>();
+                    y = m_cmd.next<qint16>();
                 }
                 quint16 zoom = 512;
                 zoom += m_cmd.next<quint16>();  // expect to overflow
                 const auto pivot_x = m_cmd.next<quint8>();
                 const auto pivot_y = m_cmd.next<quint8>();
-                drawShape(shape_offset & 0x7FFF, x, y, double(zoom)/512.0, pivot_x, pivot_y);
+
+                QMatrix pos_matrix = QMatrix().translate(x, y);
+                QMatrix scaling_matrix = QMatrix().scale(double(zoom)/512.0, double(zoom)/512.0);
+                QMatrix pivot_origin = QMatrix().translate(-pivot_x, -pivot_y);
+                QMatrix restore_origin = QMatrix().translate(pivot_x, pivot_y);
+                drawShape(shape_offset & 0x7FFF, pivot_origin * scaling_matrix * restore_origin * pos_matrix);
             } break;
             case 11: {
                 const auto shape_offset = m_cmd.next<quint16>();
@@ -186,7 +194,7 @@ public:
                 if (shape_offset & (1 << 12)) {
                     r3 = m_cmd.next<quint16>();
                 }
-                drawShape(shape_offset & 0xFFF, y, x, double(zoom)/512.0, pivot_x, pivot_y, r1, r2, r3);
+//                drawShape(shape_offset & 0xFFF, y, x, double(zoom)/512.0, pivot_x, pivot_y, r1, r2, r3);
             } break;
             case 12:
                 wait = 150;
@@ -199,7 +207,7 @@ public:
         return false;
     }
 
-    static void _drawNode(QPainter &painter, const Primitive &primitive, const QColor &color)
+    static void _drawNode(QPainter &painter, const Primitive &primitive, const QColor &color, qreal scale)
     {
         QPen pen(color);
         pen.setWidth(1);
@@ -207,7 +215,8 @@ public:
         painter.save();
         painter.setPen(pen);
         painter.setBrush(color);
-        painter.translate(primitive.x, primitive.y);
+        auto transform = QMatrix().translate(primitive.x, primitive.y) * primitive.transform * QMatrix().scale(scale, scale);
+        painter.setMatrix(transform);
         painter.drawPath(primitive.path);
         painter.restore();
     }
@@ -215,17 +224,16 @@ public:
     void drawScene(QPainter &painter, const QRect &rect)
     {
         painter.fillRect(rect, QColor(0, 0, 0));
-        painter.scale(m_scale, m_scale);
         foreach (const auto &primitive, m_backdrop_primitives) {
-            _drawNode(painter, primitive,  m_palette[primitive.color]);
+            _drawNode(painter, primitive,  m_palette[primitive.color], m_scale);
         }
         foreach (const auto &primitive, m_foreground_primitives) {
-            _drawNode(painter, primitive, m_palette[primitive.color]);
+            _drawNode(painter, primitive, m_palette[primitive.color], m_scale);
         }
     }
 
 private:
-    void drawShape(int offset, int shape_x, int shape_y, double zoom=1.0, int pivot_x=0, int pivot_y=0, int r1=1, int r2=1, int r3=1)
+    void drawShape(int offset, const QMatrix &transform)
     {
         m_pol.seek(2);
         const auto shape_offset_index = m_pol.next<quint16>();
@@ -246,8 +254,10 @@ private:
             const auto color_index = m_pol.next<quint8>() + (m_clear ? 0 : 16);
             // queue primitive
             auto pos = m_pol.pos();
-            Primitive p = {shape_x + x, shape_y + y, color_index, drawPrimitive(primitive_header & 0x3FFF)};
+            Primitive p = {x, y, color_index, drawPrimitive(primitive_header & 0x3FFF)};
             m_pol.seek(pos);
+            p.transform = transform;
+
             if (m_clear) {
                 m_backdrop_primitives.append(p);
             }
