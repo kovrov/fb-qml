@@ -43,9 +43,12 @@ public:
                 break;
 
             switch (opcode >> 2) {
+            case 9: {
+                // FIXME: op_handleKeys?
+                const auto key_mask = m_cmd.next<quint8>();
+            }
             case 0:
             case 5:
-            case 9:
                 m_start_new_shot = true;
                 wait = 75;
                 return true;  // update needed
@@ -71,6 +74,9 @@ public:
                 const auto palette_index = m_cmd.next<quint8>();
                 const auto pal_num = m_cmd.next<quint8>();
                 setPalette(palette_index, pal_num);
+            } break;
+            case 6: {
+                    const auto str_id = m_cmd.next<quint16>();
             } break;
             case 10: {
                 const auto shape_info = m_cmd.next<quint16>();
@@ -104,11 +110,11 @@ public:
                 const auto pivot_x = m_cmd.next<quint8>();
                 const auto pivot_y = m_cmd.next<quint8>();
                 const auto r1 = m_cmd.next<quint16>();
-                quint16 r2 = 90;
+                quint16 r2 = 180;
                 if (shape_info & (1 << 13)) {
                     r2 = m_cmd.next<quint16>();
                 }
-                quint16 r3 = 180;
+                quint16 r3 = 90;
                 if (shape_info & (1 << 12)) {
                     r3 = m_cmd.next<quint16>();
                 }
@@ -117,14 +123,23 @@ public:
                 auto restore_origin = QTransform::fromTranslate(pivot_x, pivot_y);
                 auto pos_matrix = QTransform::fromTranslate(x, y);
                 QTransform rotation_matrix;
+                if (r2 != 180) rotation_matrix.rotate(r2-180, Qt::XAxis);
+                if (r3 != 90) rotation_matrix.rotate(r3-90, Qt::YAxis);
                 rotation_matrix.rotate(-r1, Qt::ZAxis);
                 addShape(shape_info & 0xFFF, pivot_origin * rotation_matrix * scaling_matrix * restore_origin * pos_matrix);
             } break;
             case 12:
                 wait = 150;
                 return false;
+            case 13: {
+                const auto str_id = m_cmd.next<quint16>();
+                if (str_id != 0xFFFF) {
+                    const auto x = m_cmd.next<qint8>() * 8;
+                    const auto y = m_cmd.next<qint8>() * 8;
+                }
+            } break;
             default:
-                Q_ASSERT (false);
+                Q_ASSERT_X (false, "opcode_switch", QString::number(opcode >> 2).toAscii());
             }
         }
         start();
@@ -135,6 +150,7 @@ public:
     {
         auto scale_matrix = QTransform::fromScale(m_scale, m_scale);
         foreach (const auto &primitive, shape.primitives) {
+
             const QColor &color = palette.colors[primitive.color_index];
             QPen pen(color);
             pen.setWidth(1);
