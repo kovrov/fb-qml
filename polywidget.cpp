@@ -12,10 +12,11 @@
 class DPoly
 {
 public:
+    enum { WIDTH = 240, HEIGHT = 128 };
     DPoly()
       : m_playing (false),
         m_clear (false),
-        m_scale (3),
+        m_scale (1),
         m_cmd (Stream::fromBase64(dat_cmd)),
         m_pol (Stream::fromBase64(dat_pol)),
         m_start_new_shot (false)
@@ -160,6 +161,8 @@ public:
         }
     }
 
+    void setScale(qreal scale) { m_scale = scale; }
+
 private:
     void addShape(int offset, const QTransform &transform)
     {
@@ -188,7 +191,7 @@ private:
     bool m_clear;
     Palete m_palette_foreground;
     Palete m_palette_backdrop;
-    int m_scale;
+    qreal m_scale;
     QList<Shape> m_foreground_primitives;
     QList<Shape> m_backdrop_primitives;
     Stream m_cmd;
@@ -199,7 +202,7 @@ private:
 
 
 PolyWidget::PolyWidget(QWidget *parent)
-  : QWidget (parent),
+  : super (parent),
     m_poly (new DPoly)
 {
     m_poly->start();
@@ -227,4 +230,12 @@ void PolyWidget::paintEvent(QPaintEvent *event)
 {
     QPainter painter(this);
     m_poly->drawScene(painter, event->rect());
+}
+
+
+void PolyWidget::resizeEvent(QResizeEvent *event)
+{
+    m_poly->setScale(qMin((qreal)event->size().width() / (qreal)DPoly::WIDTH,
+                          (qreal)event->size().height() / (qreal)DPoly::HEIGHT));
+    super::resizeEvent(event);
 }

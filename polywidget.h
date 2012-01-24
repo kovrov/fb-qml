@@ -10,6 +10,7 @@ class DPoly;
 class PolyWidget : public QWidget
 {
     Q_OBJECT
+    typedef QWidget super;
 
 public:
     PolyWidget(QWidget *parent = 0);
@@ -18,6 +19,7 @@ public:
 protected:
     void paintEvent(QPaintEvent *event);
     void timerEvent(QTimerEvent *event);
+    void resizeEvent(QResizeEvent *event);
 
 private:
     DPoly *m_poly;
