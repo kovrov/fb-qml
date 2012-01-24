@@ -145,7 +145,7 @@ public:
             painter.setPen(pen);
             painter.setBrush(color);
             painter.setTransform(primitive.transform * shape.transform * scale_matrix);
-            painter.drawPath(primitive.path);
+            painter.drawPath(m_pol.path(primitive.path_index));
         }
     }
 
@@ -164,7 +164,7 @@ private:
     void addShape(int offset, const QTransform &transform)
     {
         Shape shape = { transform };
-        shape.primitives = m_pol.m_primitive_groups[offset];
+        shape.primitives = m_pol.primitives(offset);
 
         if (m_clear) {
             m_backdrop_primitives.append(shape);
@@ -177,10 +177,10 @@ private:
     void setPalette(int palette_index, int pal_num)
     {
         if (pal_num ^ 1) {
-            m_palette_foreground = m_pol.m_palettes[palette_index];
+            m_palette_foreground = m_pol.palette(palette_index);
         }
         else {
-            m_palette_backdrop = m_pol.m_palettes[palette_index];
+            m_palette_backdrop = m_pol.palette(palette_index);
         }
     }
 

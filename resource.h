@@ -12,7 +12,7 @@ struct Primitive
     bool has_alpha;
     int color_index;
     QTransform transform;
-    QPainterPath path;
+    int path_index;
 };
 
 
@@ -64,13 +64,14 @@ class POL
 {
 public:
     POL(Stream stream);
+    const Palete & palette(int i) { return m_palettes.at(i); }
+    const QList<Primitive> & primitives(int i) { return m_primitives.at(i); }
+    const QPainterPath & path(int i) { return m_paths.at(i); }
 
 private:
-    void parse_poly(Stream &stream);
-
-public:  /// FIXME: accessors!
     QVector<Palete> m_palettes;
-    QList< QList<Primitive> > m_primitive_groups;
+    QList<QList<Primitive> > m_primitives;
+    QList<QPainterPath> m_paths;
 };
 
 
