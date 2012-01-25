@@ -1,11 +1,18 @@
 #include <QtGui/QApplication>
-#include "polywidget.h"
+#include "qmlapplicationviewer.h"
 
-int main(int argc, char *argv[])
+#include "cutscenewidget.h"
+
+Q_DECL_EXPORT int main(int argc, char *argv[])
 {
-    QApplication a(argc, argv);
-    PolyWidget w;
-    w.show();
+    QScopedPointer<QApplication> app(createApplication(argc, argv));
 
-    return a.exec();
+    qmlRegisterType<CutsceneWidget>("Flashback", 1, 0, "Cutscene");
+
+    QmlApplicationViewer viewer;
+    viewer.setOrientation(QmlApplicationViewer::ScreenOrientationAuto);
+    viewer.setMainQmlFile(QLatin1String("qml/re/main.qml"));
+    viewer.showExpanded();
+
+    return app->exec();
 }
