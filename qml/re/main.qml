@@ -8,10 +8,18 @@ Rectangle {
     Cutscene {
         id: cutscene
         anchors.fill: parent
+        Component.onCompleted: { cutscene.playing = true }
+    }
+
+    Label {
+        anchors.centerIn: parent
+        text: "paused"
+        visible: !cutscene.playing
     }
 
     MouseArea {
         anchors.fill: parent
-        onClicked: cutscene.play()
+        onClicked: { cutscene.playing = !cutscene.playing }
     }
+
 }

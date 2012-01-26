@@ -203,14 +203,20 @@ CutsceneWidget::~CutsceneWidget()
 }
 
 
-void CutsceneWidget::play()
+void CutsceneWidget::setPlaying(bool play)
 {
-    if (-1 == m_timerId) {
-        m_timerId = startTimer(0);
+    if (play) {
+        if (-1 == m_timerId) {
+            m_timerId = startTimer(0);
+            emit playingChanged();
+        }
     }
     else {
-        killTimer(m_timerId);
-        m_timerId = -1;
+        if (-1 != m_timerId) {
+            killTimer(m_timerId);
+            m_timerId = -1;
+            emit playingChanged();
+        }
     }
 }
 
@@ -228,6 +234,7 @@ void CutsceneWidget::timerEvent(QTimerEvent *ev)
 
 void CutsceneWidget::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
 {
+    painter->save();
     painter->fillRect(boundingRect(), QColor(0, 0, 0));
     painter->setClipRect(m_clipRect);
     const auto widget_transform = m_transform * sceneTransform();
@@ -247,6 +254,7 @@ void CutsceneWidget::paint(QPainter *painter, const QStyleOptionGraphicsItem *op
             }
         }
     }
+    painter->restore();
 }
 
 
