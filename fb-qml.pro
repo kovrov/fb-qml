@@ -16,12 +16,14 @@ QMAKE_CXXFLAGS += -std=c++0x
 SOURCES += \
     main.cpp \
     resource.cpp \
-    cutscenewidget.cpp
+    cutscenewidget.cpp \
+    resourceimageprovider.cpp
 
 HEADERS += \
     data.h \
     resource.h \
-    cutscenewidget.h
+    cutscenewidget.h \
+    resourceimageprovider.h
 
 # Please do not modify the following two lines. Required for deployment.
 include(qmlapplicationviewer/qmlapplicationviewer.pri)
