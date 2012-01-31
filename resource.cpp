@@ -57,9 +57,9 @@ QVector<Palete> extract_palettes(Stream &stream)
         for (auto j=0; j < (sizeof(palette.colors)/sizeof(QColor)); ++j) {
             auto color_data = stream.next<quint16>();
             const quint8 t = (color_data == 0) ? 0 : 3;
-            const int r = (((color_data & 0xF00) >> 6) | t) * 3;
-            const int g = (((color_data & 0x0F0) >> 2) | t) * 3;
-            const int b = (((color_data & 0x00F) << 2) | t) * 3;
+            const int r = (((color_data & 0xF00) >> 6) | t) * 4;
+            const int g = (((color_data & 0x0F0) >> 2) | t) * 4;
+            const int b = (((color_data & 0x00F) << 2) | t) * 4;
             palette.colors[j].setRgb(r, g, b);
         }
         palettes.append(palette);
