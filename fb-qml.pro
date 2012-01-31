@@ -17,13 +17,15 @@ SOURCES += \
     main.cpp \
     resource.cpp \
     cutscenewidget.cpp \
-    resourceimageprovider.cpp
+    resourceimageprovider.cpp \
+    datafs.cpp
 
 HEADERS += \
     data.h \
     resource.h \
     cutscenewidget.h \
-    resourceimageprovider.h
+    resourceimageprovider.h \
+    datafs.h
 
 # Please do not modify the following two lines. Required for deployment.
 include(qmlapplicationviewer/qmlapplicationviewer.pri)

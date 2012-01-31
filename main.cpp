@@ -10,6 +10,8 @@
 Q_DECL_EXPORT int main(int argc, char *argv[])
 {
     QScopedPointer<QApplication> app(createApplication(argc, argv));
+    app->setOrganizationName("inc11");
+    app->setApplicationName("fb-qml");
 
     qmlRegisterType<CutsceneWidget>("Flashback", 1, 0, "Cutscene");
 

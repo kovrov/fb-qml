@@ -1,10 +1,11 @@
-#include <QDir>
 #include <QFile>
 #include <QtAlgorithms>
 #include <QtEndian>
-#include <qdebug.h>
 
+#include "datafs.h"
 #include "resourceimageprovider.h"
+
+#include <qdebug.h>
 
 
 
@@ -62,7 +63,7 @@ QPixmap MenuImageProvider::requestPixmap(const QString &id, QSize *size, const Q
 
     // read palette
     {
-        QFile file(QString("%1/Dropbox/re/DATA/%2.pal").arg(QDir::homePath()).arg(id));
+        QFile file(DataFS::fileInfo(QString("%1.pal").arg(id)).filePath());
         file.open(QIODevice::ReadOnly);
         Q_ASSERT (file.size() == (3 * 256));
 
@@ -79,7 +80,7 @@ QPixmap MenuImageProvider::requestPixmap(const QString &id, QSize *size, const Q
 
     // read bitmap indices
     {
-        QFile file(QString("%1/Dropbox/re/DATA/%2.map").arg(QDir::homePath()).arg(id));
+        QFile file(DataFS::fileInfo(QString("%1.map").arg(id)).filePath());
         file.open(QIODevice::ReadOnly);
         Q_ASSERT (file.size() == WIDTH * HEIGHT);
         decode_uncompressed_bitmap(image, file.readAll());
@@ -106,7 +107,7 @@ QPixmap LevelImageProvider::requestPixmap(const QString &id, QSize *size, const 
     QVector<QRgb> level_palette;
     // read palette
     {
-        QFile file(QString("%1/Dropbox/re/DATA/level%2.pal").arg(QDir::homePath()).arg(level));
+        QFile file(DataFS::fileInfo(QString("level%1.pal").arg(level)).filePath());
         file.open(QIODevice::ReadOnly);
 
         const auto colors_count = file.size() / 2;
@@ -125,7 +126,7 @@ QPixmap LevelImageProvider::requestPixmap(const QString &id, QSize *size, const 
 
     // read bitmap indices
     {
-        QFile file(QString("%1/Dropbox/re/DATA/level%2.map").arg(QDir::homePath()).arg(level));
+        QFile file(DataFS::fileInfo(QString("level%1.map").arg(level)).filePath());
         file.open(QIODevice::ReadOnly);
         Q_ASSERT (room < 0x40);
         file.seek(room * 6);
