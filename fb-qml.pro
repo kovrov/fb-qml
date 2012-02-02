@@ -18,13 +18,16 @@ SOURCES += \
     resource.cpp \
     cutscenewidget.cpp \
     resourceimageprovider.cpp \
-    datafs.cpp
+    levelcomponent.cpp \
+    datafs.cpp \
+    data.cpp
 
 HEADERS += \
     data.h \
     resource.h \
     cutscenewidget.h \
     resourceimageprovider.h \
+    levelcomponent.h \
     datafs.h
 
 # Please do not modify the following two lines. Required for deployment.

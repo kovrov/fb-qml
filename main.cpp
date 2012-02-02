@@ -3,6 +3,7 @@
 #include "qmlapplicationviewer.h"
 
 #include "cutscenewidget.h"
+#include "levelcomponent.h"
 #include "resourceimageprovider.h"
 
 
@@ -14,6 +15,7 @@ Q_DECL_EXPORT int main(int argc, char *argv[])
     app->setApplicationName("fb-qml");
 
     qmlRegisterType<CutsceneWidget>("Flashback", 1, 0, "Cutscene");
+    qmlRegisterType<LevelComponent>("Flashback", 1, 0, "Level");
 
     QmlApplicationViewer viewer;
     viewer.engine()->addImageProvider(QLatin1String("menu"), new MenuImageProvider);
