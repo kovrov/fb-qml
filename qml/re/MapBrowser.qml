@@ -3,13 +3,16 @@ import Flashback 1.0
 
 
 Item {
+    property int levelId;
     property int room;
 
-    Component.onCompleted: {
-        level.load(1)
+
+    onLevelIdChanged:  {
+        level.load(levelId)
         room = 27
-        img.source = "image://level/1/" + room
+        img.source = "image://level/" + levelId + "/" + room
     }
+
 
     Image {
         width: parent.width
@@ -172,7 +175,7 @@ Item {
                 return
             origin = Qt.point(x, y)
             var n = level.adjacentRoomAt(room, swipeDirection)
-            next.source = "image://level/1/" + n
+            next.source = "image://level/" + levelId + "/" + n
             state = "ready"
         }
 
