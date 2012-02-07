@@ -13,14 +13,13 @@ class CutsceneWidget : public QDeclarativeItem
     typedef QDeclarativeItem super;
 
 public:
-
-    bool isPlaying() { return m_timerId != -1; }
-    void setPlaying(bool play);
-    Q_SIGNAL void playingChanged();
-    Q_PROPERTY (bool playing READ isPlaying WRITE setPlaying NOTIFY playingChanged)
-
     CutsceneWidget(QDeclarativeItem *parent=0);
     ~CutsceneWidget();
+
+    Q_INVOKABLE void play(const QString &name);
+    Q_INVOKABLE void stop();
+    Q_SIGNAL void finished();
+
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget=0);
 
 protected:

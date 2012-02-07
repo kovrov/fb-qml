@@ -30,7 +30,7 @@ struct Palete { QColor colors[16]; };
 class Stream
 {
 public:
-    static Stream fromBase64(const QByteArray &base64);
+    static Stream fromFileInfo(const class QFileInfo &fi);
     void seek(int pos) { _pos = pos; }
     int pos() const { return _pos; }
 
@@ -52,7 +52,6 @@ public:
 
 private:
     Stream(const QByteArray &data);
-    static QByteArray decode(const QByteArray &array);
 
     const QByteArray _data;
     int _pos;

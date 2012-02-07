@@ -32,32 +32,50 @@ Rectangle {
             visible: (!cutscene.playing)
         }
 
+        property variant queue: []
         MouseArea {
             anchors.fill: parent
             onClicked: {
                 appWindow.state = "menu"
             }
         }
+        onFinished: {
+            if (queue.length == 0) {
+                appWindow.state = "menu"
+                return
+            }
+            var tmp = queue  // workaround qml properties limitations
+            play(tmp.shift())
+            queue = tmp
+        }
     }
 
     states: [
         State {
             name: "intro"
-            PropertyChanges { target: menu; visible: false }
-            PropertyChanges { target: map; visible: false }
-            PropertyChanges { target: cutscene; visible: true; playing: true }
+            StateChangeScript {
+                script: {
+                    menu.visible = false
+                    map.visible = false
+                    cutscene.visible = true
+                    cutscene.play("logos")
+                    cutscene.queue = ["intro1", "intro2"]
+                }
+            }
         },
         State {
             name: "menu"
-            PropertyChanges { target: menu; visible: true }
-            PropertyChanges { target: map; visible: false }
-            PropertyChanges { target: cutscene; visible: false; playing: false }
+            PropertyChanges { restoreEntryValues: false; target: menu; visible: true }
+            PropertyChanges { restoreEntryValues: false; target: map; visible: false }
+            PropertyChanges { restoreEntryValues: false; target: cutscene; visible: false }
+            StateChangeScript { script: cutscene.stop() }
         },
         State {
             name: "game"
-            PropertyChanges { target: menu; visible: false }
-            PropertyChanges { target: map; visible: true; levelId: 1 }
-            PropertyChanges { target: cutscene; visible: false; playing: false }
+            PropertyChanges { restoreEntryValues: false; target: menu; visible: false }
+            PropertyChanges { restoreEntryValues: false; target: map; visible: true; levelId: 1 }
+            PropertyChanges { restoreEntryValues: false; target: cutscene; visible: false }
+            StateChangeScript { script: cutscene.stop() }
         }
     ]
 

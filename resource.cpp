@@ -1,3 +1,5 @@
+#include <QFile>
+#include <QFileInfo>
 #include <QColor>
 
 #include "resource.h"
@@ -8,33 +10,11 @@
 Stream::Stream(const QByteArray &data) : _data (data), _pos (0) {}
 
 
-Stream Stream::fromBase64(const QByteArray &base64)
+Stream Stream::fromFileInfo(const QFileInfo &fi)
 {
-    return Stream(decode(QByteArray::fromBase64(base64)));
-}
-
-
-QByteArray Stream::decode(const QByteArray &array)
-{
-    QByteArray res;
-    auto idx = 0;
-    while (idx < array.length()) {
-        const quint8 e = array[idx];
-        ++idx;
-        for (auto i = 0; i < 8 && idx < array.length(); ++i)
-            if ((e & 1 << i) == 0) {
-                res += array[idx];
-                ++idx;
-            }
-            else {
-                const quint16 f = quint16(array[idx] << 8) | quint8(array[idx+1]);
-                idx += 2;
-                for (auto j = 0; j < ((f >> 12) + 3); ++j) {
-                    res += res[res.length() - (f & 0xFFF)];
-                }
-            }
-    }
-    return res;
+    QFile file(fi.filePath());
+    file.open(QIODevice::ReadOnly);
+    return Stream(file.readAll());
 }
 
 

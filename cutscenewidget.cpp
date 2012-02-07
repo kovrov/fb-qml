@@ -6,6 +6,7 @@
 #include "cutscenewidget.h"
 #include "resource.h"
 #include "data.h"
+#include "datafs.h"
 
 
 
@@ -20,10 +21,10 @@ class Cutscene
 {
 public:
     enum { WIDTH = 240, HEIGHT = 128 };
-    Cutscene()
+    Cutscene(const QString &name)
       : m_clear (false),
-        m_cmd (Stream::fromBase64(dat_cmd)),
-        m_pol (Stream::fromBase64(dat_pol)),
+        m_cmd (Stream::fromFileInfo(DataFS::fileInfo(name + ".cmd"))),
+        m_pol (Stream::fromFileInfo(DataFS::fileInfo(name + ".pol"))),
         m_start_new_shot (false)
     {
         m_scene << SceneNode()  // backdrop
@@ -39,8 +40,11 @@ public:
         m_cmd.seek(2);
     }
 
-    bool doTick(int &wait)
+    struct TickResult { int wait; bool update; bool finished; };
+    TickResult doTick()
     {
+        TickResult res = { 0, false, false };  // assuming RVO
+
         if (m_start_new_shot) {
             m_start_new_shot = false;
             m_scene[1].shapes.clear(); // foreground
@@ -52,6 +56,7 @@ public:
                 break;
 
             switch (opcode >> 2) {
+            case 14:  // op_handleKeys
             case 9: {
                 // FIXME: op_handleKeys?
                 const quint8 key_mask = m_cmd.next<quint8>();
@@ -59,8 +64,9 @@ public:
             case 0:
             case 5:
                 m_start_new_shot = true;
-                wait = 75;
-                return true;  // update needed
+                res.wait = 75;
+                res.update = true;
+                return res;
             case 1:
                 m_clear = bool(m_cmd.next<quint8>());
                 if (m_clear)
@@ -68,8 +74,8 @@ public:
                 break;
             case 2: {  // sleep
                 const quint8 frame_delay = m_cmd.next<quint8>();
-                wait = frame_delay * 60;
-            }   return false;
+                res.wait = frame_delay * 60;
+            }   return res;
             case 3:{
                 const quint16 shape_offset = m_cmd.next<quint16>();
                 qint16 x = 0, y = 0;
@@ -138,8 +144,8 @@ public:
                 addShape(shape_info & 0xFFF, pivot_origin * rotation_matrix * scaling_matrix * restore_origin * pos_matrix);
             } break;
             case 12:
-                wait = 150;
-                return false;
+                res.wait = 150;
+                return res;
             case 13: {
                 const quint16 str_id = m_cmd.next<quint16>();
                 if (str_id != 0xFFFF) {
@@ -151,8 +157,8 @@ public:
                 Q_ASSERT_X (false, "opcode_switch", QString::number(opcode >> 2).toAscii());
             }
         }
-        start();
-        return false;
+        res.finished = true;
+        return res;
     }
 
 private:
@@ -189,11 +195,10 @@ private:
 
 CutsceneWidget::CutsceneWidget(QDeclarativeItem *parent)
   : super (parent),
-    m_cutscene (new Cutscene),
+    m_cutscene (NULL),
     m_timerId (-1)
 {
     setFlag(QGraphicsItem::ItemHasNoContents, false);
-    m_cutscene->start();
 }
 
 
@@ -203,21 +208,26 @@ CutsceneWidget::~CutsceneWidget()
 }
 
 
-void CutsceneWidget::setPlaying(bool play)
+void CutsceneWidget::play(const QString &name)
 {
-    if (play) {
-        if (-1 == m_timerId) {
-            m_timerId = startTimer(0);
-            emit playingChanged();
-        }
+    stop();
+    m_cutscene = new Cutscene(name);
+    m_cutscene->start();
+    m_timerId = startTimer(0);
+    //if (-1 == m_timerId) {
+    //    emit playingChanged();
+    //}
+}
+
+void CutsceneWidget::stop()
+{
+    if (-1 != m_timerId) {
+        killTimer(m_timerId);
+        m_timerId = -1;
+        //emit playingChanged();
     }
-    else {
-        if (-1 != m_timerId) {
-            killTimer(m_timerId);
-            m_timerId = -1;
-            emit playingChanged();
-        }
-    }
+    delete m_cutscene;
+    m_cutscene = NULL;
 }
 
 
@@ -225,10 +235,21 @@ void CutsceneWidget::timerEvent(QTimerEvent *ev)
 {
     Q_ASSERT (m_timerId == ev->timerId());
     killTimer(ev->timerId());
-    int wait = 0;
-    if (m_cutscene->doTick(wait))
+    if (m_cutscene == NULL)
+        return;
+
+    auto res = m_cutscene->doTick();
+    if (res.update) {
         update();
-    m_timerId = startTimer(wait);
+    }
+
+    if (res.finished) {
+        emit finished();
+    }
+    else {
+        m_timerId = startTimer(res.wait);
+    }
+
 }
 
 
