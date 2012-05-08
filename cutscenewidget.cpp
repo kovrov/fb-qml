@@ -23,8 +23,8 @@ public:
     enum { WIDTH = 240, HEIGHT = 128 };
     Cutscene(const QString &name)
       : m_clear (false),
-        m_cmd (Stream::fromFileInfo(DataFS::fileInfo(name + ".cmd"))),
-        m_pol (Stream::fromFileInfo(DataFS::fileInfo(name + ".pol"))),
+        m_cmd (BigEndianStream::fromFileInfo(DataFS::fileInfo(name + ".cmd"))),
+        m_pol (BigEndianStream::fromFileInfo(DataFS::fileInfo(name + ".pol"))),
         m_start_new_shot (false)
     {
         m_scene << SceneNode()  // backdrop
@@ -60,6 +60,7 @@ public:
             case 9: {
                 // FIXME: op_handleKeys?
                 const quint8 key_mask = m_cmd.next<quint8>();
+                Q_UNUSED (key_mask)
             }
             case 0:
             case 5:
@@ -92,6 +93,7 @@ public:
             } break;
             case 6: {
                     const quint16 str_id = m_cmd.next<quint16>();
+                    Q_UNUSED (str_id)
             } break;
             case 10: {
                 const quint16 shape_info = m_cmd.next<quint16>();
@@ -151,6 +153,8 @@ public:
                 if (str_id != 0xFFFF) {
                     const qint8 x = m_cmd.next<qint8>() * 8;
                     const qint8 y = m_cmd.next<qint8>() * 8;
+                    Q_UNUSED (x)
+                    Q_UNUSED (y)
                 }
             } break;
             default:
@@ -186,7 +190,7 @@ private:
 
     bool m_clear;
     QList<SceneNode> m_scene;
-    Stream m_cmd;
+    BigEndianStream m_cmd;
     POL m_pol;
     bool m_start_new_shot;
 };
@@ -255,6 +259,8 @@ void CutsceneWidget::timerEvent(QTimerEvent *ev)
 
 void CutsceneWidget::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
 {
+    Q_UNUSED (option)
+    Q_UNUSED (widget)
     painter->save();
     painter->fillRect(boundingRect(), QColor(0, 0, 0));
     painter->setClipRect(m_clipRect);

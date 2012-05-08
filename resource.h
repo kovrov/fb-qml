@@ -27,10 +27,10 @@ struct Palete { QColor colors[16]; };
 
 
 
-class Stream
+class BigEndianStream
 {
 public:
-    static Stream fromFileInfo(const class QFileInfo &fi);
+    static BigEndianStream fromFileInfo(const class QFileInfo &fi);
     void seek(int pos) { _pos = pos; }
     int pos() const { return _pos; }
 
@@ -51,7 +51,7 @@ public:
     }
 
 private:
-    Stream(const QByteArray &data);
+    BigEndianStream(const QByteArray &data);
 
     const QByteArray _data;
     int _pos;
@@ -62,7 +62,7 @@ private:
 class POL
 {
 public:
-    POL(Stream stream);
+    POL(BigEndianStream stream);
     const Palete & palette(int i) { return m_palettes.at(i); }
     const QList<Primitive> & primitives(int i) { return m_primitives.at(i); }
     const QPainterPath & path(int i) { return m_paths.at(i); }

@@ -1,27 +1,31 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QColor>
+#include <qdebug.h>
 
 #include "resource.h"
 #include "data.h"
 
 
 
-Stream::Stream(const QByteArray &data) : _data (data), _pos (0) {}
+BigEndianStream::BigEndianStream(const QByteArray &data) : _data (data), _pos (0) {}
 
 
-Stream Stream::fromFileInfo(const QFileInfo &fi)
+BigEndianStream BigEndianStream::fromFileInfo(const QFileInfo &fi)
 {
     QFile file(fi.filePath());
-    file.open(QIODevice::ReadOnly);
-    return Stream(file.readAll());
+    if (!file.open(QIODevice::ReadOnly)) {
+        qWarning() << "BigEndianStream: failed to open file" << file.fileName();
+        return BigEndianStream(QByteArray());
+    }
+    return BigEndianStream(file.readAll());
 }
 
 
 
 
 
-QVector<Palete> extract_palettes(Stream &stream)
+QVector<Palete> extract_palettes(BigEndianStream &stream)
 {
     stream.seek(6);
     const auto palette_index = stream.next<quint16>();
@@ -32,9 +36,9 @@ QVector<Palete> extract_palettes(Stream &stream)
     QVector<Palete> palettes;
     palettes.reserve(palettes_length);
     stream.seek(palette_index);
-    for (auto i=0; i < palettes_length; ++i) {
+    for (size_t i=0; i < palettes_length; ++i) {
         Palete palette;
-        for (auto j=0; j < (sizeof(palette.colors)/sizeof(QColor)); ++j) {
+        for (size_t j=0; j < (sizeof(palette.colors)/sizeof(QColor)); ++j) {
             auto color_data = stream.next<quint16>();
             const quint8 t = (color_data == 0) ? 0 : 3;
             const int r = (((color_data & 0xF00) >> 6) | t) * 4;
@@ -49,7 +53,7 @@ QVector<Palete> extract_palettes(Stream &stream)
 
 
 
-QList< QList<Primitive> > extract_primitive_groups(Stream &stream)
+QList< QList<Primitive> > extract_primitive_groups(BigEndianStream &stream)
 {
     stream.seek(2);
     const auto shape_offset_index = stream.next<quint16>();
@@ -64,7 +68,7 @@ QList< QList<Primitive> > extract_primitive_groups(Stream &stream)
     const size_t shape_offset_table_length = (palette_index - shape_offset_index) / sizeof(quint16);
     shape_offset_table.reserve(shape_offset_table_length);
     stream.seek(shape_offset_index);
-    for (auto i=0; i < shape_offset_table_length; ++i)
+    for (size_t i=0; i < shape_offset_table_length; ++i)
         shape_offset_table.append(stream.next<quint16>());
 
     QList< QList<Primitive> > primitive_groups;
@@ -95,7 +99,7 @@ QList< QList<Primitive> > extract_primitive_groups(Stream &stream)
 
 
 
-QList<QPainterPath> extract_paths(Stream &stream)
+QList<QPainterPath> extract_paths(BigEndianStream &stream)
 {
     stream.seek(10);
     const auto vertices_offset_index = stream.next<quint16>();
@@ -107,7 +111,7 @@ QList<QPainterPath> extract_paths(Stream &stream)
     const size_t vertices_offset_table_length = (vertices_data_index - vertices_offset_index) / sizeof(quint16);
     vertices_offset_table.reserve(vertices_offset_table_length);
     stream.seek(vertices_offset_index);
-    for (auto i=0; i < vertices_offset_table_length; ++i)
+    for (size_t i=0; i < vertices_offset_table_length; ++i)
         vertices_offset_table.append(stream.next<quint16>());
 
 
@@ -145,7 +149,7 @@ QList<QPainterPath> extract_paths(Stream &stream)
 
 
 
-POL::POL(Stream stream)
+POL::POL(BigEndianStream stream)
 {
     m_palettes = extract_palettes(stream);
     m_paths = extract_paths(stream);

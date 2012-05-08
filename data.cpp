@@ -158,6 +158,46 @@ namespace  // internal
 
 
 
+class LittleEndianStream
+{
+public:
+    static LittleEndianStream fromFileInfo(const class QFileInfo &fi)
+    {
+        QFile file(fi.filePath());
+        if (!file.open(QIODevice::ReadOnly)) {
+            qWarning() << "LittleEndianStream: failed to open file" << file.fileName();
+            return LittleEndianStream(QByteArray());
+        }
+        return LittleEndianStream(file.readAll());
+    }
+    void seek(int pos) { _pos = pos; }
+    int pos() const { return _pos; }
+
+    template<typename T>
+    T next()
+    {
+        if (sizeof(T) == 1) {
+            T res = (T)_data[_pos];
+            _pos += 1;
+            return res;
+        }
+        else if (sizeof(T) == 2) {
+            auto data = (const uchar*)_data.constData();
+            T res = qFromLittleEndian<T>(data + _pos);
+            _pos += 2;
+            return res;
+        }
+    }
+
+private:
+    LittleEndianStream(const QByteArray &data) : _data (data), _pos (0) {}
+
+    const QByteArray _data;
+    int _pos;
+};
+
+
+
 namespace FlashbackData  // internal
 {
     class CT
