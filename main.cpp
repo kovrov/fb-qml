@@ -21,7 +21,7 @@ Q_DECL_EXPORT int main(int argc, char *argv[])
     viewer.engine()->addImageProvider(QLatin1String("menu"), new MenuImageProvider);
     viewer.engine()->addImageProvider(QLatin1String("level"), new LevelImageProvider);
     viewer.setOrientation(QmlApplicationViewer::ScreenOrientationAuto);
-    viewer.setMainQmlFile(QLatin1String("qml/re/main.qml"));
+    viewer.setMainQmlFile(QLatin1String("qml/main.qml"));
     viewer.showExpanded();
 
     return app->exec();
