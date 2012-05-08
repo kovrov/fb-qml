@@ -22,12 +22,16 @@ public:
     Q_INVOKABLE int adjacentRoomAt(int i, Direction dir);
     Q_INVOKABLE void load(int level);
 
+    int initialRoom() const;
+    Q_SIGNAL void initialRoomChanged();
+    Q_PROPERTY (int initialRoom READ initialRoom NOTIFY initialRoomChanged) // read-only
+
 signals:
 
 public slots:
 
 private:
-    FlashbackData::Level *m_mevel;
+    QSharedPointer<FlashbackData::Level> m_mevel;
 };
 
 

@@ -37,8 +37,11 @@ QPixmap MenuImageProvider::requestPixmap(const QString &id, QSize *size, const Q
 
     // read palette
     {
-        QFile file(DataFS::fileInfo(QString("%1.pal").arg(id)).filePath());
-        file.open(QIODevice::ReadOnly);
+        QFile file(DataFS::fileInfo(id+".pal").filePath());
+        if (!file.open(QIODevice::ReadOnly)) {
+            qWarning() << "MenuImageProvider: failed to open file" << file.fileName();
+            return QPixmap();
+        }
         Q_ASSERT (file.size() == (3 * 256));
 
         QVector<QRgb> colors;
@@ -54,8 +57,11 @@ QPixmap MenuImageProvider::requestPixmap(const QString &id, QSize *size, const Q
 
     // read bitmap indices
     {
-        QFile file(DataFS::fileInfo(QString("%1.map").arg(id)).filePath());
-        file.open(QIODevice::ReadOnly);
+        QFile file(DataFS::fileInfo(id+".map").filePath());
+        if (!file.open(QIODevice::ReadOnly)) {
+            qWarning() << "MenuImageProvider: failed to open file" << file.fileName();
+            return QPixmap();
+        }
         Q_ASSERT (file.size() == WIDTH * HEIGHT);
         decode_uncompressed_bitmap(image, file.readAll());
 
@@ -75,13 +81,10 @@ QPixmap LevelImageProvider::requestPixmap(const QString &id, QSize *size, const 
     auto ids = id.split('/');
     int level = ids[0].toInt();
     int room = ids[1].toInt();
-    qDebug() << "### level:" << level << "room:" << room;
+    qDebug() << "### requestPixmap level:" << level << "room:" << room;
 
-    // TODO: resource manager
-    FlashbackData::Level data_level;
-    data_level.load(level);
-
-    QImage image = data_level.roomBitmap(room);
+    auto data_level = FlashbackData::Level::load(level);
+    QImage image = data_level->roomBitmap(room);
     if (size)
         *size = image.size();
     return QPixmap::fromImage(image);

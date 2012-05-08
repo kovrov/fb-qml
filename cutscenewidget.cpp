@@ -218,9 +218,6 @@ void CutsceneWidget::play(const QString &name)
     m_cutscene = new Cutscene(name);
     m_cutscene->start();
     m_timerId = startTimer(0);
-    //if (-1 == m_timerId) {
-    //    emit playingChanged();
-    //}
 }
 
 void CutsceneWidget::stop()
@@ -228,7 +225,6 @@ void CutsceneWidget::stop()
     if (-1 != m_timerId) {
         killTimer(m_timerId);
         m_timerId = -1;
-        //emit playingChanged();
     }
     delete m_cutscene;
     m_cutscene = NULL;

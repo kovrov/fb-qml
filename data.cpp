@@ -2,6 +2,7 @@
 #include <QColor>
 #include <QtEndian>
 #include <QtAlgorithms>
+#include <QWeakPointer>
 
 #include "data.h"
 #include "datafs.h"
@@ -200,13 +201,29 @@ private:
 
 namespace FlashbackData  // internal
 {
+    static const struct {
+        const QString name, name2;
+        quint16 cutscene_id;
+        quint8 spl;
+    } _levels[] = {
+        { "level1", "level1", 0x00, 1 },
+        { "level2", "level2", 0x2F, 1 },
+        { "level3", "level3", 0xFFFF, 3 },
+        { "level4", "level4_1", 0x34, 3 },
+        { "level4", "level4_2", 0x39, 3 },
+        { "level5", "level5_1", 0x35, 4 },
+        { "level5", "level5_2", 0xFFFF, 4 }};
+
     class CT
     {
     public:
         void load(int level)
         {
-            QFile file(DataFS::fileInfo(QString("level%1.ct").arg(level)).filePath());
-            file.open(QIODevice::ReadOnly);
+            QFile file(DataFS::fileInfo(_levels[level].name+".ct").filePath());
+            if (!file.open(QIODevice::ReadOnly)) {
+                qWarning() << "FlashbackData::CT: failed to open file" << file.fileName();
+                return;
+            }
             QByteArray data = delphine_unpack(file.readAll());
             adjacentRooms = data.left(256);
             collisionData = data.right(256);
@@ -221,8 +238,11 @@ namespace FlashbackData  // internal
     public:
         void load(int level)
         {
-            QFile file(DataFS::fileInfo(QString("level%1.map").arg(level)).filePath());
-            file.open(QIODevice::ReadOnly);
+            QFile file(DataFS::fileInfo(_levels[level].name+".map").filePath());
+            if (!file.open(QIODevice::ReadOnly)) {
+                qWarning() << "FlashbackData::MAP: failed to open file" << file.fileName();
+                return;
+            }
             for (int room=0; room < 64; ++room) {
                 file.seek(room * 6);
                 quint8 raw_int32[4];
@@ -267,9 +287,11 @@ namespace FlashbackData  // internal
     public:
         void load(int level)
         {
-            QFile file(DataFS::fileInfo(QString("level%1.pal").arg(level)).filePath());
-            file.open(QIODevice::ReadOnly);
-
+            QFile file(DataFS::fileInfo(_levels[level].name+".pal").filePath());
+            if (!file.open(QIODevice::ReadOnly)) {
+                qWarning() << "FlashbackData::PAL: failed to open file" << file.fileName();
+                return;
+            }
             const auto colors_count = file.size() / 2;
             palette.reserve(colors_count);
             for (auto i = 0; i < colors_count; ++i) {
@@ -285,15 +307,82 @@ namespace FlashbackData  // internal
         }
         QVector<QRgb> palette;
     };
+
+
+    class PGE
+    {
+    public:
+        struct Init
+        {
+            /*
+
+*/
+            quint16 type;  // obj_type, used in getAniData()
+            qint16 x, y;
+            quint16 obj_node_number;  // _objectNodesMap[] OBJ
+            quint16 life;
+            qint16 counter_values[4];
+            quint8 object_type; // enum 0 .. 12
+            quint8 room;  // CT.adjacentRooms //init_room
+            bool animated;  //room_location
+            quint8 init_flags;
+            quint8 colliding_icon; //col_findCurrentCollidingObject  //colliding_icon_num
+            quint8 icon;  //icon_num
+            quint8 object_id; // find object in inventory
+            quint8 skill;
+            quint8 mirror_x; // somehow affecting flags
+            quint8 flags; // 1:FacingDir,
+            quint8 unk1C; // collidable, collision_data_len
+            quint16 text_num;
+        };
+        QVector<Init> init;
+
+        void load(int level)
+        {
+            auto data = LittleEndianStream::fromFileInfo(DataFS::fileInfo(_levels[level].name2+".pge").filePath());
+            uint pge_num = data.next<quint16>();
+            qDebug() << "pge_num:" << pge_num;
+            init.resize(pge_num);
+            for (unsigned int i = 0; i < pge_num; ++i) {
+                Init *pge = &init[i];
+                pge->type = data.next<quint16>();
+                pge->x = data.next<quint16>();
+                pge->y = data.next<quint16>();
+                pge->obj_node_number = data.next<quint16>();
+                pge->life = data.next<quint16>();
+                for (int lc = 0; lc < 4; ++lc) {
+                    pge->counter_values[lc] = data.next<quint16>();
+                }
+                pge->object_type = data.next<quint8>();
+                pge->room = data.next<quint8>();
+                pge->animated = data.next<quint8>();
+                pge->init_flags = data.next<quint8>();
+                pge->colliding_icon = data.next<quint8>();
+                pge->icon = data.next<quint8>();
+                pge->object_id = data.next<quint8>();
+                pge->skill = data.next<quint8>();
+                pge->mirror_x = data.next<quint8>();
+                pge->flags = data.next<quint8>();
+                pge->unk1C = data.next<quint8>();
+                data.next<quint8>();
+                pge->text_num = data.next<quint16>();
+            }
+        }
+    };
 }
 
 
 
-FlashbackData::Level::Level()
+FlashbackData::Level::Level(int level)
   : m_CT (new CT),
     m_MAP (new MAP),
-    m_PAL (new PAL)
+    m_PAL (new PAL),
+    m_PGE (new PGE)
 {
+    m_CT->load(level);
+    m_PAL->load(level);
+    m_MAP->load(level);
+    m_PGE->load(level);
 }
 
 
@@ -302,24 +391,36 @@ FlashbackData::Level::~Level()
     delete m_CT;
     delete m_MAP;
     delete m_PAL;
+    delete m_PGE;
 }
 
 
-void FlashbackData::Level::load(int level)
+QSharedPointer<FlashbackData::Level> FlashbackData::Level::load(int level)
 {
-    m_CT->load(level);
-    m_PAL->load(level);
-    m_MAP->load(level);
+    static QMap<int, QWeakPointer<FlashbackData::Level> > _cache;
+    if (_cache.contains(level) && !_cache[level].isNull()) {
+        return _cache[level].toStrongRef();
+    }
+    QSharedPointer<FlashbackData::Level> self(new Level(level));
+    _cache[level] = self;
+    return self;
 }
 
 
-const QByteArray &FlashbackData::Level::adjacentRooms()
+int FlashbackData::Level::initialRoom() const
+{
+    qDebug() << "### Level::initialRoom:" << m_PGE->init[0].room;
+    return m_PGE->init[0].room;
+}
+
+
+const QByteArray &FlashbackData::Level::adjacentRooms() const
 {
     return m_CT->adjacentRooms;
 }
 
 
-QImage FlashbackData::Level::roomBitmap(int room)
+QImage FlashbackData::Level::roomBitmap(int room) const
 {
     enum { WIDTH = 256, HEIGHT = 224 };
     QImage image(WIDTH, HEIGHT, QImage::Format_Indexed8);
@@ -356,6 +457,29 @@ QImage FlashbackData::Level::roomBitmap(int room)
         auto line = image.scanLine(y);
         qCopy(bitmap.data.constBegin() + y * WIDTH,
               bitmap.data.constBegin() + y * WIDTH + WIDTH, line);
+    }
+
+    foreach (const auto &pge, m_PGE->init) {
+        if (pge.room != room)
+            continue;
+//        qDebug() << "[pge]"
+//                 << "type:" << pge.type
+//                 << "pos:" << pge.x << "," << pge.y
+//                 << "obj_node:" << pge.obj_node_number
+//                 << "life:" << pge.life
+////                         << "counter_values:" << pge.counter_values[4]
+//                 << "obj_t:" << pge.object_type
+//                 << "room:" << pge.room
+//                 << "location:" << pge.animated
+//                 << "i_flags:" << pge.init_flags
+//                 << "c_icon:" << pge.colliding_icon
+//                 << "icon:" << pge.icon
+//                 << "obj_id:" << pge.object_id
+//                 << "skill:" << pge.skill
+//                 << "mirror:" << pge.mirror_x
+//                 << "flags:" << pge.flags
+//                 << "_:" << pge.unk1C
+//                 << "text:" << pge.text_num;
     }
 
     return image;

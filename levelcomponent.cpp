@@ -6,26 +6,33 @@
 
 
 LevelComponent::LevelComponent(QDeclarativeItem *parent)
-  : QDeclarativeItem (parent),
-    m_mevel (new FlashbackData::Level)
+  : QDeclarativeItem (parent)
 {
 }
 
-
 LevelComponent::~LevelComponent()
 {
-    delete m_mevel;
 }
 
 
 void LevelComponent::load(int level)
 {
-    m_mevel->load(level);
+    m_mevel = FlashbackData::Level::load(level);
+    emit initialRoomChanged();
+}
+
+
+int LevelComponent::initialRoom() const
+{
+    return m_mevel.isNull() ? -1 : m_mevel->initialRoom();
 }
 
 
 int LevelComponent::adjacentRoomAt(int room, Direction dir)
 {
+    if (m_mevel.isNull())
+        return -1;
+
     const auto &adjacentRooms = m_mevel->adjacentRooms();
     if (adjacentRooms.isEmpty() || adjacentRooms.size() <= room + dir)
         return -1;

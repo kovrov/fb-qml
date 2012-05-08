@@ -3,34 +3,48 @@ import Flashback 1.0
 
 Rectangle {
     id: appWindow
-    width: 256; height: 224
+    width: 854; height: 480
     color: "#000000"
 
     Menu {
         id: menu
         visible: false
         anchors.fill: parent
-        onStartSelected: appWindow.state = "game"
-        onOptionsSelected: console.log("TODO: options")
+        onStartSelected: levelMenu.visible = true
         onQuitSelected: Qt.quit()
+
+        LevelMenu {
+            id: levelMenu
+            anchors.fill: parent
+            visible: false
+            onItemSelected: {
+                visible = false
+                map.levelId = index
+                appWindow.state = "game"
+
+            }
+        }
     }
 
     MapBrowser {
         id: map
         visible: false
         anchors.fill: parent
+        Label {
+            text: "[~]"
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    appWindow.state = "menu"
+                }
+            }
+        }
     }
 
     Cutscene {
         id: cutscene
         visible: false
         anchors.fill: parent
-
-        Label {
-            anchors.centerIn: parent
-            text: "paused"
-            visible: (!cutscene.playing)
-        }
 
         property variant queue: []
         MouseArea {
@@ -73,7 +87,7 @@ Rectangle {
         State {
             name: "game"
             PropertyChanges { restoreEntryValues: false; target: menu; visible: false }
-            PropertyChanges { restoreEntryValues: false; target: map; visible: true; levelId: 1 }
+            PropertyChanges { restoreEntryValues: false; target: map; visible: true }
             PropertyChanges { restoreEntryValues: false; target: cutscene; visible: false }
             StateChangeScript { script: cutscene.stop() }
         }

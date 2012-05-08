@@ -3,13 +3,14 @@ import Flashback 1.0
 
 
 Item {
-    property int levelId;
-    property int room;
+    property int levelId: -1
+    property int room: -1
 
 
     onLevelIdChanged:  {
+        console.log("onLevelIdChanged: " + levelId)
         level.load(levelId)
-        room = 27
+        room = level.initialRoom
         img.source = "image://level/" + levelId + "/" + room
     }
 

@@ -2,7 +2,6 @@ import QtQuick 1.1
 
 Rectangle {
     signal startSelected()
-    signal optionsSelected()
     signal quitSelected()
 
     color: "black"
@@ -19,10 +18,6 @@ Rectangle {
         MenuItem {
             text: qsTr("START")
             onClicked: parent.parent.startSelected()
-        }
-        MenuItem {
-            text: qsTr("OPTIONS")
-            onClicked: parent.parent.optionsSelected()
         }
         MenuItem {
             text: qsTr("QUIT")

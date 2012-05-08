@@ -2,9 +2,8 @@
 #define DATA_H
 
 #include <QByteArray>
-#include <QVector>
-#include <QRgb>
 #include <QImage>
+#include <QSharedPointer>
 
 
 /**
@@ -12,34 +11,38 @@
  */
 namespace FlashbackData
 {
-    /*
-    ANI
+    /* level topology:
     BNQ
     CT  adjacent rooms, collision
     LEV
     MAP bitmap, parette table
     MBK
-    OBJ
-    PAK
     PAL palettes
-    PGE
     RP
-    SGD
+    */
+    /* level objects:
+    ANI
+    OBJ
+    PGE objects
     TBN
     */
     class Level
     {
     public:
-        Level();
+
+        static QSharedPointer<Level> load(int level);
         ~Level();
-        void load(int level);
-        const QByteArray &adjacentRooms();
-        QImage roomBitmap(int room);
+        int initialRoom() const;
+        const QByteArray &adjacentRooms() const;
+        QImage roomBitmap(int room) const;
 
     private:
+        Level(int level);
+
         class CT *m_CT;    // adjacent rooms, collision
         class MAP *m_MAP;  // bitmap, parette table
         class PAL *m_PAL;  // palettes
+        class PGE *m_PGE;  // objects
     };
 }
 
