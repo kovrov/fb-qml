@@ -5,8 +5,8 @@
 
 
 
-LevelComponent::LevelComponent(QDeclarativeItem *parent)
-  : QDeclarativeItem (parent)
+LevelComponent::LevelComponent(QQuickItem *parent)
+  : QQuickItem (parent)
 {
 }
 

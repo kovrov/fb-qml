@@ -42,8 +42,7 @@ namespace  // internal
                 const int len = 1 - code;
                 memset(dst, *src++, len);
                 dst += len;
-            }
-            else {
+            } else {
                 ++code;
                 memcpy(dst, src, code);
                 src += code;
@@ -126,14 +125,12 @@ namespace  // internal
                 if (0 == ctx.read_bit_from_src()) {
                     auto num_bytes = 1 + ctx.read_bits_from_src(3);
                     ctx.copy_bytes_from_src(num_bytes);
-                }
-                else {
+                } else {
                     auto num_bytes = 2;
                     auto offset = ctx.read_bits_from_src(8);
                     ctx.copy_bytes_from_window(num_bytes, offset);
                 }
-            }
-            else {
+            } else {
                 auto c = ctx.read_bits_from_src(2);
                 switch (c) {
                 case 3: {  // b11
@@ -181,8 +178,7 @@ public:
             T res = (T)_data[_pos];
             _pos += 1;
             return res;
-        }
-        else if (sizeof(T) == 2) {
+        } else if (sizeof(T) == 2) {
             auto data = (const uchar*)_data.constData();
             T res = qFromLittleEndian<T>(data + _pos);
             _pos += 2;
@@ -269,8 +265,7 @@ namespace FlashbackData  // internal
                         auto size = qFromLittleEndian<quint16>(raw_int16);
                         bitmap.data.append(unpack_block(file.read(size)));
                     }
-                }
-                else {
+                } else {
                     Q_ASSERT (false); // breakpoint =)
                     bitmap.data = decode_uncompressed_bitmap(file.read(256 * 224));
                 }

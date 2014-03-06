@@ -1,4 +1,4 @@
-import QtQuick 1.1
+import QtQuick 2.2
 
 Rectangle {
     signal startSelected()
@@ -7,6 +7,8 @@ Rectangle {
     color: "black"
 
     Image {
+        anchors.fill: parent
+        fillMode: Image.PreserveAspectFit
         source: "image://menu/menu1"
     }
 

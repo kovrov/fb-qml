@@ -1,5 +1,5 @@
-import QtQuick 1.1
-import Flashback 1.0
+import QtQuick 2.2
+import reminiscence 1.0
 
 
 Item {
@@ -39,6 +39,8 @@ Item {
             else
                 next.visible = true
         }
+        smooth: false
+        antialiasing: false
     }
 
     Rectangle {
@@ -59,7 +61,7 @@ Item {
     }
 
     MouseArea {
-        property variant origin // point
+        property point origin
         property int value
         property int swipeDirection: -1
         anchors.fill: parent
@@ -70,7 +72,7 @@ Item {
         }
 
         onReleased: {
-            if (state == "ready") {
+            if (state === "ready") {
                 var img_source = img.source
                 img.source = next.source
                 next.source = img_source
@@ -98,7 +100,7 @@ Item {
             state = ""
         }
 
-        onMousePositionChanged: {
+        onPositionChanged: {
             switch (state) {
             case "ready":
             case "cancelled":
@@ -149,25 +151,25 @@ Item {
             var h = x - origin.x
             var v = y - origin.y
             if (h > 32) {
-                if (-1 == level.adjacentRoomAt(room, Level.LEFT))
+                if (-1 === level.adjacentRoomAt(room, Level.LEFT))
                     return
                 swipeDirection = Level.LEFT
                 next.anchors.horizontalCenterOffset = -img.paintedWidth
             }
             else if (h < -32) {
-                if (-1 == level.adjacentRoomAt(room, Level.RIGHT))
+                if (-1 === level.adjacentRoomAt(room, Level.RIGHT))
                     return
                 swipeDirection = Level.RIGHT
                 next.anchors.horizontalCenterOffset = img.paintedWidth
             }
             else if (v > 32) {
-                if (-1 == level.adjacentRoomAt(room, Level.UP))
+                if (-1 === level.adjacentRoomAt(room, Level.UP))
                     return
                 swipeDirection = Level.UP
                 next.anchors.verticalCenterOffset = -img.paintedHeight
             }
             else if (v < -32) {
-                if (-1 == level.adjacentRoomAt(room, Level.DOWN))
+                if (-1 === level.adjacentRoomAt(room, Level.DOWN))
                     return
                 swipeDirection = Level.DOWN
                 next.anchors.verticalCenterOffset = img.paintedHeight

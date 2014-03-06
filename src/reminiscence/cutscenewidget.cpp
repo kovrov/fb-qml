@@ -21,8 +21,8 @@ class Cutscene
 {
 public:
     enum { WIDTH = 240, HEIGHT = 128 };
-    Cutscene(const QString &name)
-      : m_clear (false),
+    Cutscene(const QString &name) :
+        m_clear (false),
         m_cmd (BigEndianStream::fromFileInfo(DataFS::fileInfo(name + ".cmd"))),
         m_pol (BigEndianStream::fromFileInfo(DataFS::fileInfo(name + ".pol"))),
         m_start_new_shot (false)
@@ -35,10 +35,7 @@ public:
 
     const QPainterPath & path(int i) { return m_pol.path(i); }
 
-    void start()
-    {
-        m_cmd.seek(2);
-    }
+    void start() { m_cmd.seek(2); }
 
     struct TickResult { int wait; bool update; bool finished; };
     TickResult doTick()
@@ -92,8 +89,8 @@ public:
                 setPalette(palette_index, pal_num);
             } break;
             case 6: {
-                    const quint16 str_id = m_cmd.next<quint16>();
-                    Q_UNUSED (str_id)
+                const quint16 str_id = m_cmd.next<quint16>();
+                Q_UNUSED (str_id)
             } break;
             case 10: {
                 const quint16 shape_info = m_cmd.next<quint16>();
@@ -108,10 +105,11 @@ public:
                 const quint8 pivot_y = m_cmd.next<quint8>();
 
                 QTransform pivot_origin = QTransform::fromTranslate(-pivot_x, -pivot_y);
-                QTransform scaling_matrix = QTransform::fromScale(double(zoom)/512.0, double(zoom)/512.0);
+                QTransform scaling_matrix = QTransform::fromScale(zoom / 512.0, zoom / 512.0);
                 QTransform restore_origin = QTransform::fromTranslate(pivot_x, pivot_y);
                 QTransform pos_matrix = QTransform::fromTranslate(x, y);
-                addShape(shape_info & 0x7FFF, pivot_origin * scaling_matrix * restore_origin * pos_matrix);
+                addShape(shape_info & 0x7FFF,
+                         pivot_origin * scaling_matrix * restore_origin * pos_matrix);
             } break;
             case 11: {
                 const quint16 shape_info = m_cmd.next<quint16>();
@@ -121,29 +119,29 @@ public:
                     y = m_cmd.next<qint16>();
                 }
                 quint16 zoom = 512;
-                if (shape_info & (1 << 14)) {
+                if (shape_info & (1 << 14))
                     zoom += m_cmd.next<quint16>();  // expect to overflow
-                }
                 const quint8 pivot_x = m_cmd.next<quint8>();
                 const quint8 pivot_y = m_cmd.next<quint8>();
                 const quint16 r1 = m_cmd.next<quint16>();
                 quint16 r2 = 180;
-                if (shape_info & (1 << 13)) {
+                if (shape_info & (1 << 13))
                     r2 = m_cmd.next<quint16>();
-                }
                 quint16 r3 = 90;
-                if (shape_info & (1 << 12)) {
+                if (shape_info & (1 << 12))
                     r3 = m_cmd.next<quint16>();
-                }
                 QTransform pivot_origin = QTransform::fromTranslate(-pivot_x, -pivot_y);
-                QTransform scaling_matrix = QTransform::fromScale(double(zoom)/512.0, double(zoom)/512.0);
+                QTransform scaling_matrix = QTransform::fromScale(zoom / 512.0, zoom / 512.0);
                 QTransform restore_origin = QTransform::fromTranslate(pivot_x, pivot_y);
                 QTransform pos_matrix = QTransform::fromTranslate(x, y);
                 QTransform rotation_matrix;
-                if (r2 != 180) rotation_matrix.rotate(r2-180, Qt::XAxis);
-                if (r3 != 90) rotation_matrix.rotate(r3-90, Qt::YAxis);
+                if (r2 != 180)
+                    rotation_matrix.rotate(r2 - 180, Qt::XAxis);
+                if (r3 != 90)
+                    rotation_matrix.rotate(r3 - 90, Qt::YAxis);
                 rotation_matrix.rotate(-r1, Qt::ZAxis);
-                addShape(shape_info & 0xFFF, pivot_origin * rotation_matrix * scaling_matrix * restore_origin * pos_matrix);
+                addShape(shape_info & 0xFFF,
+                         pivot_origin * rotation_matrix * scaling_matrix * restore_origin * pos_matrix);
             } break;
             case 12:
                 res.wait = 150;
@@ -158,7 +156,7 @@ public:
                 }
             } break;
             default:
-                Q_ASSERT_X (false, "opcode_switch", QString::number(opcode >> 2).toAscii());
+                Q_ASSERT_X (false, "opcode_switch", qPrintable(opcode >> 2));
             }
         }
         res.finished = true;
@@ -169,23 +167,18 @@ private:
     void addShape(int offset, const QTransform &transform)
     {
         Shape shape = { transform, m_pol.primitives(offset)};
-
-        if (m_clear) {
+        if (m_clear)
             m_scene[0].shapes.append(shape); // backdrop
-        }
-        else {
+        else
             m_scene[1].shapes.append(shape); // foreground
-        }
     }
 
     void setPalette(int palette_index, int pal_num)
     {
-        if (pal_num ^ 1) {
+        if (pal_num ^ 1)
             m_scene[1].palette = m_pol.palette(palette_index);
-        }
-        else {
+        else
             m_scene[0].palette = m_pol.palette(palette_index);
-        }
     }
 
     bool m_clear;
@@ -197,12 +190,13 @@ private:
 
 
 
-CutsceneWidget::CutsceneWidget(QDeclarativeItem *parent)
-  : super (parent),
+CutsceneWidget::CutsceneWidget(QQuickItem *parent) :
+    QQuickPaintedItem (parent),
     m_cutscene (NULL),
     m_timerId (-1)
 {
-    setFlag(QGraphicsItem::ItemHasNoContents, false);
+    setRenderTarget(QQuickPaintedItem::FramebufferObject);
+    setFillColor(QColor(0, 0, 0));
 }
 
 
@@ -219,6 +213,7 @@ void CutsceneWidget::play(const QString &name)
     m_cutscene->start();
     m_timerId = startTimer(0);
 }
+
 
 void CutsceneWidget::stop()
 {
@@ -245,28 +240,25 @@ void CutsceneWidget::timerEvent(QTimerEvent *ev)
 
     if (res.finished) {
         emit finished();
-    }
-    else {
+    } else {
         m_timerId = startTimer(res.wait);
     }
 
 }
 
 
-void CutsceneWidget::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
+void CutsceneWidget::paint(QPainter *painter)
 {
-    Q_UNUSED (option)
-    Q_UNUSED (widget)
+    if (NULL == m_cutscene)
+        return;
     painter->save();
-    painter->fillRect(boundingRect(), QColor(0, 0, 0));
     painter->setClipRect(m_clipRect);
-    const auto widget_transform = m_transform * sceneTransform();
     QPen pen;
     pen.setWidth(1);
     pen.setJoinStyle(Qt::MiterJoin);
     foreach (const SceneNode &node, m_cutscene->scene()) {
         foreach (const Shape &shape, node.shapes) {
-            const auto shape_transform = shape.transform * widget_transform;
+            const auto shape_transform = shape.transform * m_transform;
             foreach (const Primitive &primitive, shape.primitives) {
                 const QColor &color = node.palette.colors[primitive.color_index];
                 pen.setColor(color);
@@ -284,7 +276,7 @@ void CutsceneWidget::paint(QPainter *painter, const QStyleOptionGraphicsItem *op
 void CutsceneWidget::geometryChanged(const QRectF &newGeometry, const QRectF &oldGeometry)
 {
     const qreal scale = qMin((qreal)newGeometry.width() / (qreal)Cutscene::WIDTH,
-                            (qreal)newGeometry.height() / (qreal)Cutscene::HEIGHT);
+                             (qreal)newGeometry.height() / (qreal)Cutscene::HEIGHT);
     const QSizeF scene_size(scale * Cutscene::WIDTH, scale * Cutscene::HEIGHT);
     const QSizeF diff = newGeometry.size() - scene_size;
     const QPoint translate(diff.width()/2, diff.height()/2);
@@ -292,5 +284,5 @@ void CutsceneWidget::geometryChanged(const QRectF &newGeometry, const QRectF &ol
     m_clipRect = QRectF(translate, scene_size);
     m_transform = QTransform::fromScale(scale, scale) * QTransform::fromTranslate(translate.x(), translate.y());
 
-    super::geometryChanged(newGeometry, oldGeometry);
+    QQuickPaintedItem::geometryChanged(newGeometry, oldGeometry);
 }

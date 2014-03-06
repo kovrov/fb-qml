@@ -128,11 +128,9 @@ QList<QPainterPath> extract_paths(BigEndianStream &stream)
             const auto center_x = stream.next<qint16>();
             const auto center_y = stream.next<qint16>();
             path.addEllipse(QPointF(vert_x, vert_y), center_x, center_y);
-        }
-        else if (num_vertices == 0) {
+        } else if (num_vertices == 0) {
             path.addRect(QRectF(vert_x, vert_y, 1, 1));
-        }
-        else {
+        } else {
             path.moveTo(vert_x, vert_y);
             for (auto i = 0; i < num_vertices; ++i) {
                 vert_x += stream.next<qint8>();

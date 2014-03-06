@@ -1,26 +1,26 @@
 #ifndef POLYWIDGET_H
 #define POLYWIDGET_H
 
-#include <QDeclarativeItem>
+#include <QtQuick/QQuickPaintedItem>
+#include <QtGui/QTransform>
 
 class Cutscene;
 
 
 
-class CutsceneWidget : public QDeclarativeItem
+class CutsceneWidget : public QQuickPaintedItem
 {
     Q_OBJECT
-    typedef QDeclarativeItem super;
 
 public:
-    CutsceneWidget(QDeclarativeItem *parent=0);
+    CutsceneWidget(QQuickItem *parent=0);
     ~CutsceneWidget();
 
     Q_INVOKABLE void play(const QString &name);
     Q_INVOKABLE void stop();
     Q_SIGNAL void finished();
 
-    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget=0);
+    void paint(QPainter *painter);
 
 protected:
 //    void paintEvent(QPaintEvent *event);
