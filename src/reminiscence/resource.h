@@ -1,10 +1,12 @@
 #ifndef RESOURCE_H
 #define RESOURCE_H
 
-#include <QPainterPath>
-#include <QTransform>
-#include <QtEndian>
+#include <QtCore/QtEndian>
+#include <QtGui/QPainterPath>
+#include <QtGui/QTransform>
+#include <QtGui/QColor>
 
+class QFileInfo;
 
 
 struct Primitive
@@ -16,7 +18,6 @@ struct Primitive
 };
 
 
-
 struct Shape
 {
     QTransform transform;
@@ -26,11 +27,10 @@ struct Shape
 struct Palete { QColor colors[16]; };
 
 
-
 class BigEndianStream
 {
 public:
-    static BigEndianStream fromFileInfo(const class QFileInfo &fi);
+    static BigEndianStream fromFileInfo(const QFileInfo &fi);
     void seek(int pos) { _pos = pos; }
     int pos() const { return _pos; }
 
@@ -57,7 +57,6 @@ private:
 };
 
 
-
 class POL
 {
 public:
@@ -71,7 +70,6 @@ private:
     QList<QList<Primitive> > m_primitives;
     QList<QPainterPath> m_paths;
 };
-
 
 
 #endif // RESOURCE_H

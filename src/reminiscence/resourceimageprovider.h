@@ -4,14 +4,12 @@
 #include <QtQuick/QQuickImageProvider>
 
 
-
 class MenuImageProvider : public QQuickImageProvider
 {
 public:
     MenuImageProvider() : QQuickImageProvider(QQuickImageProvider::Pixmap) {}
     QPixmap requestPixmap(const QString &id, QSize *size, const QSize &requestedSize);
 };
-
 
 
 class LevelImageProvider : public QQuickImageProvider

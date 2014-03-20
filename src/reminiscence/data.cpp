@@ -159,7 +159,7 @@ namespace  // internal
 class LittleEndianStream
 {
 public:
-    static LittleEndianStream fromFileInfo(const class QFileInfo &fi)
+    static LittleEndianStream fromFileInfo(const QFileInfo &fi)
     {
         QFile file(fi.filePath());
         if (!file.open(QIODevice::ReadOnly)) {

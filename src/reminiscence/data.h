@@ -11,21 +11,39 @@
  */
 namespace FlashbackData
 {
-    /* level topology:
+    /* level
+    ANI
     BNQ
     CT  adjacent rooms, collision
     LEV
     MAP bitmap, parette table
-    MBK
-    PAL palettes
-    RP
-    */
-    /* level objects:
-    ANI
+    MBK BankData (to draw objects)
     OBJ
+    PAL palettes
     PGE objects
+    RP
+    SGD
     TBN
     */
+    /* global
+    ADL
+    BIN
+    CMD
+    FIB fibonacci table? SoundFx
+    FNT font
+    ICN inventory items
+    INS
+    MID
+    MOD
+    OFF
+    POL
+    PRF
+    SPC animated sprtes
+    SPR
+    TXT
+    VCE
+    */
+
     class Level
     {
     public:
