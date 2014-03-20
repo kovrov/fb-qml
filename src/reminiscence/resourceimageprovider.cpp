@@ -89,3 +89,22 @@ QPixmap LevelImageProvider::requestPixmap(const QString &id, QSize *size, const 
         *size = image.size();
     return QPixmap::fromImage(image);
 }
+
+
+
+QPixmap IconImageProvider::requestPixmap(const QString &id, QSize *size, const QSize &requestedSize)
+{
+    Q_UNUSED (requestedSize)
+
+    auto ids = id.split('/');
+    const QString scope(ids[0]);
+    int iconNum = ids[1].toInt();
+
+    static auto icons = FlashbackData::IconDecoder::load(scope);
+    QImage image = icons->image(iconNum);
+
+    if (size)
+        *size = image.size();
+
+    return QPixmap::fromImage(image);
+}

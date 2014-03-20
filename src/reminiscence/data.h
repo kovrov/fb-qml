@@ -62,6 +62,20 @@ namespace FlashbackData
         class PAL *m_PAL;  // palettes
         class PGE *m_PGE;  // objects
     };
+
+
+    class IconDecoder
+    {
+    public:
+        static QSharedPointer<IconDecoder> load(const QString &scope);
+        ~IconDecoder();
+        QImage image(int iconNum) const;
+
+    private:
+        IconDecoder(const QString &name);
+
+        class ICN *m_ICN;
+    };
 }
 
 

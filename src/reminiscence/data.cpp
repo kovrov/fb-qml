@@ -364,6 +364,33 @@ namespace FlashbackData  // internal
             }
         }
     };
+
+
+    class ICN
+    {
+    public:
+        ICN(const QFileInfo &fi)
+        {
+            QFile f(fi.filePath());
+            f.open(QIODevice::ReadOnly);
+            QDataStream stream(&f);
+            stream.setByteOrder(QDataStream::LittleEndian);
+            quint16 first;
+            stream >> first;
+            for (quint16 offset = first; f.pos() <= first; stream >> offset) {
+                qint64 pos = f.pos();
+                f.seek(offset + 2);
+                QByteArray buffer(16 * 16 / 2, Qt::Uninitialized);
+                stream.readRawData(buffer.data(), buffer.size());
+                m_icons << buffer;
+                f.seek(pos);
+            }
+        }
+        const QByteArray & bitmap(int i) { return m_icons.at(i); }
+
+    private:
+        QList<QByteArray> m_icons;
+    };
 }
 
 
@@ -477,5 +504,83 @@ QImage FlashbackData::Level::roomBitmap(int room) const
 //                 << "text:" << pge.text_num;
     }
 
+    return image;
+}
+
+
+
+FlashbackData::IconDecoder::IconDecoder(const QString &scope) :
+    m_ICN (new ICN (DataFS::fileInfo(scope + ".icn")))
+{
+}
+
+
+FlashbackData::IconDecoder::~IconDecoder()
+{
+    delete m_ICN;
+}
+
+
+QSharedPointer<FlashbackData::IconDecoder> FlashbackData::IconDecoder::load(const QString &scope)
+{
+    static QMap<QString, QWeakPointer<FlashbackData::IconDecoder> > _cache;
+    auto self(_cache.value(scope).toStrongRef());
+    if (!self) {
+        self.reset(new IconDecoder(scope));
+        _cache[scope] = self;
+    }
+    return self;
+}
+
+
+QImage FlashbackData::IconDecoder::image(int iconNum) const
+{
+    enum { WIDTH = 16, HEIGHT = 16 };
+    // 0xA0
+    static const QVector<QRgb> item_colors = QVector<QRgb>()
+            << QColor(0x00, 0x00, 0x00, 0).rgba()
+            << QColor(0xCF, 0xCF, 0xCF).rgb()
+            << QColor(0x4F, 0x2F, 0x0F).rgb()
+            << QColor(0x4F, 0x4F, 0xAF).rgb()
+            << QColor(0xCF, 0x6F, 0x6F).rgb()
+            << QColor(0x8F, 0x8F, 0x8F).rgb()
+            << QColor(0x6F, 0x6F, 0xCF).rgb()
+            << QColor(0x6F, 0x4F, 0x2F).rgb()
+            << QColor(0xEF, 0x0F, 0x4F).rgb()
+            << QColor(0x8F, 0x0F, 0x4F).rgb()
+            << QColor(0x4F, 0x4F, 0x4F).rgb()
+            << QColor(0x0F, 0xEF, 0x0F).rgb()
+            << QColor(0x0F, 0x6F, 0x0F).rgb()
+            << QColor(0xEF, 0xEF, 0x0F).rgb()
+            << QColor(0xAF, 0x2F, 0xEF).rgb()
+            << QColor(0x00, 0x00, 0x00).rgb();
+    // 0xF0
+    static const QVector<QRgb> inventory_colors = QVector<QRgb>()
+            << QColor(0x00, 0x00, 0x00, 0).rgba()
+            << QColor(0x1F, 0x17, 0x2B).rgb()
+            << QColor(0x2B, 0x1F, 0x37).rgb()
+            << QColor(0x37, 0x2B, 0x47).rgb()
+            << QColor(0x43, 0x37, 0x53).rgb()
+            << QColor(0x4F, 0x43, 0x63).rgb()
+            << QColor(0x5F, 0x53, 0x6F).rgb()
+            << QColor(0x6F, 0x63, 0x7F).rgb()
+            << QColor(0x7F, 0x73, 0x8B).rgb()
+            << QColor(0x8F, 0x87, 0x9B).rgb()
+            << QColor(0x9F, 0x97, 0xA7).rgb()
+            << QColor(0xAF, 0xA7, 0xB3).rgb()
+            << QColor(0xBF, 0xBB, 0xBF).rgb()
+            << QColor(0xCF, 0xCF, 0xCF).rgb()
+            << QColor(0x00, 0x33, 0x00).rgb()
+            << QColor(0x17, 0x0F, 0x1F).rgb();
+
+    QImage image(WIDTH, HEIGHT, QImage::Format_Indexed8);
+    image.setColorTable(iconNum < 31 || iconNum > 75 ? item_colors : inventory_colors);
+
+    const QByteArray &bitmap = m_ICN->bitmap(iconNum);
+    for (int i = 0; i < HEIGHT * WIDTH / 2; ++i) {
+        quint8 n = static_cast<quint8>(bitmap[i]);
+        image.setPixel(i * 2 % 16, (i * 2) / 16, n >> 4);
+        image.setPixel((i * 2 + 1) % 16, (i * 2 + 1) / 16, n & 0xF);
+    }
     return image;
 }

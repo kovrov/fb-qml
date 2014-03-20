@@ -20,5 +20,12 @@ public:
 };
 
 
+class IconImageProvider : public QQuickImageProvider
+{
+public:
+    IconImageProvider() : QQuickImageProvider(QQuickImageProvider::Pixmap) {}
+    QPixmap requestPixmap(const QString &id, QSize *size, const QSize &requestedSize);
+};
+
 
 #endif // RESOURCEIMAGEPROVIDER_H
