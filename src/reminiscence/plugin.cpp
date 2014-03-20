@@ -3,7 +3,7 @@
 
 #include "cutscenewidget.h"
 #include "levelcomponent.h"
-#include "resourceimageprovider.h"
+#include "imageproviders.h"
 #include "plugin.h"
 
 

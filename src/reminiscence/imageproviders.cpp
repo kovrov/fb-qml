@@ -3,7 +3,7 @@
 
 #include "data.h"
 #include "datafs.h" // FIXME
-#include "resourceimageprovider.h"
+#include "imageproviders.h"
 
 #include <qdebug.h>
 
@@ -95,14 +95,19 @@ QPixmap LevelImageProvider::requestPixmap(const QString &id, QSize *size, const 
 QPixmap IconImageProvider::requestPixmap(const QString &id, QSize *size, const QSize &requestedSize)
 {
     Q_UNUSED (requestedSize)
+    static QMap<QString, QSharedPointer<FlashbackData::IconDecoder> > _cache;
 
     auto ids = id.split('/');
     const QString scope(ids[0]);
     int iconNum = ids[1].toInt();
 
-    static auto icons = FlashbackData::IconDecoder::load(scope);
-    QImage image = icons->image(iconNum);
+    auto decoder(_cache.value(scope));
+    if (!decoder) {
+        decoder = FlashbackData::IconDecoder::load(scope);
+        _cache[scope] = decoder;
+    }
 
+    QImage image = decoder->image(iconNum);
     if (size)
         *size = image.size();
 
