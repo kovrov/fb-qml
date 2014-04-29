@@ -21,4 +21,6 @@ void ReminiscencePlugin::initializeEngine(QQmlEngine *engine, const char *uri)
     engine->addImageProvider(QLatin1String("menu"), new MenuImageProvider);
     engine->addImageProvider(QLatin1String("level"), new LevelImageProvider);
     engine->addImageProvider(QLatin1String("icon"), new IconImageProvider);
+    engine->addImageProvider(QLatin1String("spr"), new SprImageProvider);
+    engine->addImageProvider(QLatin1String("spc"), new SpcImageProvider);
 }

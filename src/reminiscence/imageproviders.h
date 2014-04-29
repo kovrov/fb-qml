@@ -28,4 +28,20 @@ public:
 };
 
 
+class SprImageProvider : public QQuickImageProvider
+{
+public:
+    SprImageProvider() : QQuickImageProvider(QQuickImageProvider::Pixmap) {}
+    QPixmap requestPixmap(const QString &id, QSize *size, const QSize &requestedSize);
+};
+
+
+class SpcImageProvider: public QQuickImageProvider
+{
+public:
+    SpcImageProvider() : QQuickImageProvider(QQuickImageProvider::Pixmap) {}
+    QPixmap requestPixmap(const QString &id, QSize *size, const QSize &requestedSize);
+};
+
+
 #endif // RESOURCEIMAGEPROVIDER_H

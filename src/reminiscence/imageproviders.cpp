@@ -113,3 +113,68 @@ QPixmap IconImageProvider::requestPixmap(const QString &id, QSize *size, const Q
 
     return QPixmap::fromImage(image);
 }
+
+
+//
+QPixmap SprImageProvider::requestPixmap(const QString &id, QSize *size, const QSize &requestedSize)
+{
+    Q_UNUSED (requestedSize)
+
+    auto ids = id.split('/');
+    auto scope = ids[0];
+    auto index = ids[1].toInt();
+    auto decoder = FlashbackData::SpriteDecoder::load(scope);
+    QImage image = decoder->image(index);
+    if (size)
+        *size = image.size();
+
+    return QPixmap::fromImage(image);
+}
+
+
+
+QPixmap SpcImageProvider::requestPixmap(const QString &id, QSize *size, const QSize &requestedSize)
+{
+    Q_UNUSED (requestedSize)
+    QImage res;
+
+    auto ids = id.split('/');
+    auto scope = ids[0];
+    auto index = ids[1].toInt();
+
+    FlashbackData::SPC *spc (new FlashbackData::SPC (DataFS::fileInfo(scope + ".spc")));
+    const auto &spc_data = spc->data()[index];
+    auto data_level = FlashbackData::Level::load(0);
+    int slot = data_level->rp(spc_data.slot);
+    const auto bank = data_level->mbk(slot);
+    foreach (const auto &frame, spc_data.frames) {
+        auto pge_flags = 0xC;
+        quint8 sprite_flags = frame.flags;
+        if (pge_flags & 2)
+            sprite_flags ^= 0x10; // 0b10000
+        quint8 h = (((sprite_flags >> 0) & 3) + 1) * 8;
+        quint8 w = (((sprite_flags >> 2) & 3) + 1) * 8;
+        const int size = w * h / 2;
+        auto src_4bit = bank.mid(frame.bankOffset, size);
+        QByteArray bitmap;
+        for (int i = 0; i < size; ++i) {
+            bitmap.push_back(src_4bit[i] >> 4);
+            bitmap.push_back(src_4bit[i] & 15);
+        }
+
+        QImage image(w, h, QImage::Format_Indexed8);
+        //image.setColorTable(data_level->colorTable(27));
+        for (int x = 0; x < w; ++x) {
+            for (int y = 0; y < h; ++y) {
+                image.setPixel(x, y, bitmap.at(x + y * w));
+            }
+        }
+        res = image;
+        break;
+    }
+
+    if (size)
+        *size = res.size();
+
+    return QPixmap::fromImage(res);
+}

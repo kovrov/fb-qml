@@ -1,8 +1,8 @@
-#include <QFile>
-#include <QColor>
-#include <QtEndian>
-#include <QtAlgorithms>
-#include <QWeakPointer>
+#include <QtCore/QFile>
+#include <QtGui/QColor>
+#include <QtCore/QtEndian>
+#include <QtCore/QtAlgorithms>
+#include <QtCore/QWeakPointer>
 
 #include "data.h"
 #include "datafs.h"
@@ -113,14 +113,14 @@ namespace  // internal
 
         QByteArray res;
         ctx.src = data.constEnd() - 4;
-        auto datasize = qFromBigEndian<uint>((const uchar*)&(*ctx.src));  ctx.src -= 4;
+        auto datasize = qFromBigEndian<quint32>((const uchar*)&(*ctx.src));  ctx.src -= 4;
         res.resize(datasize);
         ctx.dst = res.end() - 1;
         ctx.crc = qFromBigEndian<uint>((const uchar*)&(*ctx.src));  ctx.src -= 4;
         ctx.chunk = qFromBigEndian<uint>((const uchar*)&(*ctx.src));  ctx.src -= 4;
         ctx.crc ^= ctx.chunk;
 
-        while (ctx.dst >= res.begin()) {
+        while (ctx.dst >= res.constBegin()) {
             if (0 == ctx.read_bit_from_src()) {
                 if (0 == ctx.read_bit_from_src()) {
                     auto num_bytes = 1 + ctx.read_bits_from_src(3);
@@ -215,7 +215,7 @@ namespace FlashbackData  // internal
     public:
         void load(int level)
         {
-            QFile file(DataFS::fileInfo(_levels[level].name+".ct").filePath());
+            QFile file(DataFS::fileInfo(_levels[level].name + ".ct").filePath());
             if (!file.open(QIODevice::ReadOnly)) {
                 qWarning() << "FlashbackData::CT: failed to open file" << file.fileName();
                 return;
@@ -234,7 +234,7 @@ namespace FlashbackData  // internal
     public:
         void load(int level)
         {
-            QFile file(DataFS::fileInfo(_levels[level].name+".map").filePath());
+            QFile file(DataFS::fileInfo(_levels[level].name + ".map").filePath());
             if (!file.open(QIODevice::ReadOnly)) {
                 qWarning() << "FlashbackData::MAP: failed to open file" << file.fileName();
                 return;
@@ -282,7 +282,7 @@ namespace FlashbackData  // internal
     public:
         void load(int level)
         {
-            QFile file(DataFS::fileInfo(_levels[level].name+".pal").filePath());
+            QFile file(DataFS::fileInfo(_levels[level].name + ".pal").filePath());
             if (!file.open(QIODevice::ReadOnly)) {
                 qWarning() << "FlashbackData::PAL: failed to open file" << file.fileName();
                 return;
@@ -309,9 +309,6 @@ namespace FlashbackData  // internal
     public:
         struct Init
         {
-            /*
-
-*/
             quint16 type;  // obj_type, used in getAniData()
             qint16 x, y;
             quint16 obj_node_number;  // _objectNodesMap[] OBJ
@@ -326,7 +323,7 @@ namespace FlashbackData  // internal
             quint8 object_id; // find object in inventory
             quint8 skill;
             quint8 mirror_x; // somehow affecting flags
-            quint8 flags; // 1:FacingDir,
+            quint8 flags; // 1:FacingDir, 8:SPR_or_SPC
             quint8 unk1C; // collidable, collision_data_len
             quint16 text_num;
         };
@@ -334,7 +331,8 @@ namespace FlashbackData  // internal
 
         void load(int level)
         {
-            auto data = LittleEndianStream::fromFileInfo(DataFS::fileInfo(_levels[level].name2+".pge").filePath());
+            auto data = LittleEndianStream::fromFileInfo(
+                        DataFS::fileInfo(_levels[level].name2 + ".pge").filePath());
             uint pge_num = data.next<quint16>();
             qDebug() << "pge_num:" << pge_num;
             init.resize(pge_num);
@@ -391,6 +389,150 @@ namespace FlashbackData  // internal
     private:
         QList<QByteArray> m_icons;
     };
+
+
+    OFF::OFF(const QFileInfo &fi)
+    {
+        QFile f(fi.filePath());
+        f.open(QIODevice::ReadOnly);
+        QDataStream stream(&f);
+        stream.setByteOrder(QDataStream::LittleEndian);
+        quint16 pos;
+        stream >> pos;
+        for ( ; pos != 0xFFFF; stream >> pos) {
+            quint32 off;
+            stream >> off;
+            m_off[pos] = off;
+        }
+    }
+
+
+    SPR::SPR(const QFileInfo &fi)
+    {
+        QFile f(fi.filePath());
+        f.open(QIODevice::ReadOnly);
+        f.seek(12);
+        m_spr = f.readAll();
+    }
+
+
+    SPC::SPC(const QFileInfo &fi)
+    {
+        struct {
+            quint8 slot;
+            quint8 x;
+            quint8 y;
+            quint8 _[6];
+            quint8 count;
+        } raw_data_amiga;
+        Q_UNUSED (raw_data_amiga)
+
+        QFile f(fi.filePath());
+        f.open(QIODevice::ReadOnly);
+
+        QDataStream spc_stream(&f);
+        spc_stream.setByteOrder(QDataStream::BigEndian);
+
+        quint16 byte_count;
+        spc_stream >> byte_count;
+        f.seek(0);
+        QVector<size_t> off_table;
+        for (uint i = 0; i < (byte_count / sizeof(quint16)); ++i) {
+            quint16 off;
+            spc_stream >> off;
+            off_table.push_back(off);
+        }
+
+        foreach (auto off, off_table) {
+            struct {
+                quint8 slot;
+                quint8 x;
+                quint8 y;
+                quint8 _[2];
+                quint8 count;
+            } raw_data_pc;
+
+            f.seek(off);
+            f.read(reinterpret_cast<char*>(&raw_data_pc), sizeof(raw_data_pc));
+            Data data {raw_data_pc.slot, raw_data_pc.x, raw_data_pc.y, {}};
+
+            for (int i=0; i < raw_data_pc.count; ++i) {
+                struct {
+                    quint8 bankOffset;
+                    quint8 x;
+                    quint8 y;
+                    quint8 flags;
+                } raw_frame;
+
+                f.read(reinterpret_cast<char*>(&raw_frame), sizeof(raw_frame));
+                FrameData frame {raw_frame.bankOffset, raw_frame.x, raw_frame.y, raw_frame.flags};
+                data.frames.push_back(frame);
+            }
+            m_spc.push_back(data);
+        }
+    }
+
+
+    RP::RP(const QFileInfo &fi)
+    {
+        QFile f(fi.filePath());
+        f.open(QIODevice::ReadOnly);
+        m_rp = f.readAll();
+    }
+
+    QByteArray MBK::at(int i) const
+    {
+        const auto val = m_data.value(i);
+        return val.compressed ? delphine_unpack(val.rawBuffer) : val.rawBuffer;
+    }
+
+    MBK::MBK(const QFileInfo &fi)
+    {
+        QFile f (fi.filePath());
+        f.open(QIODevice::ReadOnly);
+        QDataStream be (&f);
+        be.setByteOrder(QDataStream::BigEndian);
+
+        quint32 bytes;
+        be >> bytes;
+        // ResourceTypePC: first byte of the data buffer corresponds to the total count of entries
+        bytes &= 0xFFFF; // needed?
+
+        m_data.reserve(bytes / 6);
+        for (uint i = 1; i < bytes / 6; ++i) {
+            quint32 begin_off, end_off;
+            f.seek((i - 1) * 6);
+            be >> begin_off;
+            f.seek(i * 6);
+            be >> end_off;
+            quint16 flags;
+            be >> flags;
+            bool compressed = !(flags & 0x8000);
+            // resource type PC:
+            size_t size = (flags & 0x7FFF) * 32;
+            // resource type Amiga:
+            //int size = compressed ? -(qint16)flags * 32 : flags * 32;
+            if (size > 0) {
+                m_data.insert(i, {begin_off & 0xFFFF, end_off & 0xFFFF, size, compressed, {}});
+            }
+        }
+
+        foreach (const auto i, m_data.keys()) {
+            auto &h = m_data[i];
+            if (!h.compressed) {
+                qCritical("uncompressed MBK %d", i);
+            } else {
+                f.seek(h.begin_offset);
+                h.rawBuffer = f.read(h.end_offset - h.begin_offset);
+
+                Q_ASSERT (h.end_offset > 4);
+                f.seek(h.end_offset - 4);
+                quint32 size;
+                be >> size;
+                Q_ASSERT (h.size == size);
+            }
+        }
+    }
 }
 
 
@@ -399,7 +541,9 @@ FlashbackData::Level::Level(int level)
   : m_CT (new CT),
     m_MAP (new MAP),
     m_PAL (new PAL),
-    m_PGE (new PGE)
+    m_PGE (new PGE),
+    m_MBK (new MBK(DataFS::fileInfo(_levels[level].name + ".mbk"))),
+    m_RP (new RP(DataFS::fileInfo(_levels[level].name + ".rp")))
 {
     m_CT->load(level);
     m_PAL->load(level);
@@ -414,6 +558,8 @@ FlashbackData::Level::~Level()
     delete m_MAP;
     delete m_PAL;
     delete m_PGE;
+    delete m_MBK;
+    delete m_RP;
 }
 
 
@@ -508,6 +654,16 @@ QImage FlashbackData::Level::roomBitmap(int room) const
 }
 
 
+int FlashbackData::Level::rp(int index) const
+{
+    return m_RP->at(index);
+}
+
+
+QByteArray FlashbackData::Level::mbk(int slot) const
+{
+    return m_MBK->at(slot);
+}
 
 FlashbackData::IconDecoder::IconDecoder(const QString &scope) :
     m_ICN (new ICN (DataFS::fileInfo(scope + ".icn")))
@@ -583,4 +739,181 @@ QImage FlashbackData::IconDecoder::image(int iconNum) const
         image.setPixel((i * 2 + 1) % 16, (i * 2 + 1) / 16, n & 0xF);
     }
     return image;
+}
+
+
+
+QSharedPointer<FlashbackData::SpriteDecoder> FlashbackData::SpriteDecoder::load(const QString &scope)
+{
+    static QMap<QString, QWeakPointer<FlashbackData::SpriteDecoder> > _cache;
+    auto self(_cache.value(scope).toStrongRef());
+    if (!self) {
+        self.reset(new SpriteDecoder(scope));
+        _cache[scope] = self;
+    }
+    return self;
+}
+
+
+FlashbackData::SpriteDecoder::SpriteDecoder(const QString &scope) :
+    m_SPR (new SPR (DataFS::fileInfo(scope + ".spr"))),
+    m_OFF (new OFF (DataFS::fileInfo(scope + ".off")))
+{
+}
+
+
+FlashbackData::SpriteDecoder::~SpriteDecoder()
+{
+    delete m_OFF;
+    delete m_SPR;
+}
+
+
+namespace {
+QByteArray Game_decodeCharacterFrame(const QByteArray &spr_data, int hint)
+{
+    QByteArray res;
+    QDataStream spr_stream(spr_data);
+    spr_stream.setByteOrder(QDataStream::BigEndian);
+
+    quint16 n;
+    spr_stream >> n;
+
+    quint16 len = n * 2;
+    QByteArray data_8bit;
+    data_8bit.reserve(len);
+    while (n--) {
+        quint8 c;
+        spr_stream >> c;
+        data_8bit.push_back((c & 0xF0) >> 4);
+        data_8bit.push_back((c & 0x0F) >> 0);
+    }
+
+    int index = 0;
+    res.reserve(hint);
+    do {
+        quint8 val = data_8bit[index++];
+        if (val != 0xF) {
+            res.push_back(val);
+            --len;
+        } else {
+            val = data_8bit[index++];
+            quint16 num = data_8bit[index++];
+            if (val == 0xF) {
+                quint8 lo = data_8bit[index++];
+                val = data_8bit[index++];
+                num = (num << 4) | lo;
+                len -= 2;
+            }
+            QByteArray repeated(num + 4, val);
+            res.push_back(repeated);
+            len -= 3;
+        }
+    } while (len > 0);
+    return res;
+}
+} // namespace
+
+QImage FlashbackData::SpriteDecoder::image(int number) const
+{
+    // palSlot 4 (0x40) is 64..80
+    static const QVector<QRgb> conrad_pal_1 = QVector<QRgb>()
+            << QColor(0x00, 0x00, 0x00, 0x00).rgba()
+            << QColor(0xC0, 0xC0 ,0xC0).rgb()
+            << QColor(0x80, 0x80 ,0xF0).rgb()
+            << QColor(0x70, 0x70 ,0xE0).rgb()
+            << QColor(0x60, 0x60 ,0xC0).rgb()
+            << QColor(0x50, 0x50 ,0xB0).rgb()
+            << QColor(0x40, 0x40 ,0xA0).rgb()
+            << QColor(0x90, 0x60 ,0x30).rgb()
+            << QColor(0x70, 0x50 ,0x20).rgb()
+            << QColor(0x60, 0x40 ,0x10).rgb()
+            << QColor(0x60, 0x30 ,0x00).rgb()
+            << QColor(0xC0, 0x70 ,0x60).rgb()
+            << QColor(0x90, 0x10 ,0x40).rgb()
+            << QColor(0xB0, 0x20 ,0x50).rgb()
+            << QColor(0x80, 0x80 ,0x80).rgb()
+            << QColor(0xF0, 0xF0 ,0xF0).rgb();
+    static const QVector<QRgb> conrad_pal_2 = QVector<QRgb>()
+            << QColor(0x00, 0x00, 0x00, 0x00).rgba()
+            << QColor(0xb0, 0x70, 0xc0).rgb()
+            << QColor(0x30, 0x00, 0x40).rgb()
+            << QColor(0x30, 0x00, 0x30).rgb()
+            << QColor(0x20, 0x00, 0x30).rgb()
+            << QColor(0x20, 0x00, 0x20).rgb()
+            << QColor(0x10, 0x00, 0x10).rgb()
+            << QColor(0xa0, 0x20, 0x60).rgb()
+            << QColor(0x80, 0x10, 0x40).rgb()
+            << QColor(0x60, 0x00, 0x30).rgb()
+            << QColor(0x40, 0x00, 0x20).rgb()
+            << QColor(0x90, 0x40, 0x30).rgb()
+            << QColor(0x60, 0x00, 0x20).rgb()
+            << QColor(0x70, 0x00, 0x20).rgb()
+            << QColor(0xa0, 0x60, 0xa0).rgb()
+            << QColor(0xf0, 0xf0, 0xf0).rgb();
+    static const QVector<QRgb> text_pal = QVector<QRgb>()
+            << QColor(0x00, 0x00, 0x00, 0x00).rgba()
+            << QColor(0x10, 0x10, 0x10).rgb()
+            << QColor(0x20, 0x20, 0x20).rgb()
+            << QColor(0xE0, 0xE0, 0xF0).rgb()
+            << QColor(0xF0, 0x00, 0x00).rgb()
+            << QColor(0xF0, 0xF0, 0x00).rgb()
+            << QColor(0xE0, 0xA0, 0x00).rgb()
+            << QColor(0xF0, 0xB0, 0x00).rgb()
+            << QColor(0xE0, 0xA0, 0x00).rgb()
+            << QColor(0xE0, 0xA0, 0x00).rgb()
+            << QColor(0xA0, 0xA0, 0xA0).rgb()
+            << QColor(0x00, 0xF0, 0x00).rgb()
+            << QColor(0xC0, 0xC0, 0xC0).rgb()
+            << QColor(0xD0, 0xD0, 0xF0).rgb()
+            << QColor(0xE0, 0xE0, 0xE0).rgb()
+            << QColor(0xE0, 0xE0, 0xE0).rgb();
+    static const QVector<QRgb> slot0xF_pal = QVector<QRgb>()
+            << QColor(0x00, 0x00, 0x00, 0x00).rgba()
+            << QColor(0xF0, 0x00, 0x00).rgb()
+            << QColor(0xB0, 0x10, 0x70).rgb()
+            << QColor(0xF0, 0x20, 0xB0).rgb()
+            << QColor(0x70, 0x30, 0x70).rgb()
+            << QColor(0x70, 0x20, 0xB0).rgb()
+            << QColor(0x70, 0x40, 0x30).rgb()
+            << QColor(0xF0, 0x50, 0x30).rgb()
+            << QColor(0x30, 0x40, 0x30).rgb()
+            << QColor(0x30, 0x50, 0xF0).rgb()
+            << QColor(0xF0, 0x60, 0xF0).rgb()
+            << QColor(0xF0, 0x60, 0x30).rgb()
+            << QColor(0x30, 0x70, 0xF0).rgb()
+            << QColor(0xF0, 0x80, 0xB0).rgb()
+            << QColor(0xB0, 0x80, 0x70).rgb()
+            << QColor(0x70, 0x90, 0xF0).rgb()
+            << QColor(0xF0, 0xA0, 0x70).rgb()
+            << QColor(0x30, 0xA0, 0x70).rgb()
+            << QColor(0xB0, 0xB0, 0xF0).rgb()
+            << QColor(0xF0, 0xB0, 0xF0).rgb()
+            << QColor(0xF0, 0xC0, 0xF0).rgb()
+            << QColor(0x30, 0x00, 0x00).rgb()
+            << QColor(0x70, 0x00, 0x00).rgb()
+            << QColor(0xF0, 0x00, 0xF0).rgb();
+
+    const auto &off_hash = m_OFF->hash();
+    const quint32 offset = off_hash.value(number);
+    auto const &data = m_SPR->bytes().mid(offset);
+    const int dw = data.at(0);
+    const int dh = data.at(1);
+    const int w = data.at(2);
+    const int h = data.at(3);
+    Q_UNUSED (dw)
+    Q_UNUSED (dh)
+
+    QImage res(w, h, QImage::Format_Indexed8);
+    res.setColorTable(conrad_pal_1);
+
+    QByteArray bitmap = Game_decodeCharacterFrame(data.mid(4), w * h);
+
+    for (int x = 0; x < w; ++x) {
+        for (int y = 0; y < h; ++y) {
+            res.setPixel(x, y, bitmap.at(x + y * w));
+        }
+    }
+
+    return res;
 }
